@@ -285,6 +285,9 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     # Сохраняем данные
     await state.update_data(alumochrome=alumochrome, price=price)
     
+    # Получаем все данные заказа
+    data = await state.get_data()
+    
     # Формируем текст подтверждения
     set_type_text = "один диск" if set_type == "single" else "комплект"
     alumochrome_text = "Да" if alumochrome else "Нет"
@@ -317,7 +320,7 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         photo_file_id=data["photo_file_id"]
     )
     
-    # Отправляем уведомление админу
+    # Отправляем уведомление в чат модерации
     await send_admin_notification(callback.bot, order_id, data, callback.from_user.username or callback.from_user.full_name)
     
     await state.set_state(OrderStates.order_confirmed)
@@ -340,17 +343,17 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
         logging.warning("MODERATION_CHAT_ID не настроен, уведомление не отправлено")
         return
     
-    set_type_text = "один диск" if order_data["set_type"] == "single" else "комплект"
-    alumochrome_text = "Да" if order_data["alumochrome"] else "Нет"
+    set_type_text = "один диск" if order_data.get("set_type") == "single" else "комплект"
+    alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
     
     text = (
         f"🆕 <b>Новый заказ #{order_id}</b>\n\n"
         f"👤 <b>Исполнитель:</b> @{username}\n"
-        f"📋 <b>Номер заказа:</b> {order_data['order_number']}\n"
+        f"📋 <b>Номер заказа:</b> {order_data.get('order_number', 'Не указан')}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
-        f"📏 <b>Размер:</b> {order_data['size']}\n"
+        f"📏 <b>Размер:</b> {order_data.get('size', 'Не указан')}\n"
         f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
-        f"💰 <b>Цена:</b> {order_data['price']:,} руб."
+        f"💰 <b>Цена:</b> {order_data.get('price', 0):,} руб."
     )
     
     try:
