@@ -12,7 +12,8 @@ from keyboards import (
     get_size_keyboard, 
     get_alumochrome_keyboard,
     get_cancel_keyboard,
-    get_back_to_menu_keyboard
+    get_back_to_menu_keyboard,
+    get_start_keyboard
 )
 from config import config
 from db import db
@@ -74,6 +75,12 @@ async def cmd_start(message: Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=get_main_menu_keyboard()
     )
+    
+    # Показываем обычную клавиатуру с кнопкой Старт
+    await message.answer(
+        "Используйте кнопки ниже для навигации:",
+        reply_markup=get_start_keyboard()
+    )
 
 @router.callback_query(F.data == "main_menu")
 async def show_main_menu(callback: CallbackQuery, state: FSMContext):
@@ -82,6 +89,25 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
     
     await callback.message.edit_text(
         "🎨 <b>Главное меню</b>\n\n"
+        "Выберите действие:",
+        parse_mode="HTML",
+        reply_markup=get_main_menu_keyboard()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "start_menu")
+async def show_start_menu(callback: CallbackQuery, state: FSMContext):
+    """Показать стартовое меню"""
+    await state.clear()
+    
+    # Регистрируем пользователя в базе данных
+    user_id = await db.get_or_create_user(
+        callback.from_user.id, 
+        callback.from_user.full_name or callback.from_user.username or "Unknown"
+    )
+    
+    await callback.message.edit_text(
+        "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
         "Выберите действие:",
         parse_mode="HTML",
         reply_markup=get_main_menu_keyboard()
@@ -343,6 +369,24 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
         )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
+
+@router.message(F.text == "🚀 Старт")
+async def handle_start_button(message: Message, state: FSMContext):
+    """Обработчик кнопки Старт"""
+    await state.clear()
+    
+    # Регистрируем пользователя в базе данных
+    user_id = await db.get_or_create_user(
+        message.from_user.id, 
+        message.from_user.full_name or message.from_user.username or "Unknown"
+    )
+    
+    await message.answer(
+        "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
+        "Выберите действие:",
+        parse_mode="HTML",
+        reply_markup=get_main_menu_keyboard()
+    )
 
 @router.message()
 async def handle_any_message(message: Message, state: FSMContext):
