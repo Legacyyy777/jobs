@@ -340,6 +340,17 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
+    # Проверяем, не существует ли уже такой номер заказа (дополнительная проверка)
+    if await db.check_order_number_exists(data["order_number"]):
+        await callback.message.edit_text(
+            f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует!</b>\n\n"
+            f"Что вы хотите сделать?",
+            parse_mode="HTML",
+            reply_markup=get_order_exists_keyboard(data["order_number"])
+        )
+        await callback.answer("❌ Номер заказа уже существует")
+        return
+    
     try:
         order_id = await db.create_order(
             order_number=data["order_number"],
