@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 async def main():
     """Основная функция запуска бота"""
     
+    # Отладочная информация
+    logger.info("=== ОТЛАДКА ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ===")
+    logger.info(f"BOT_TOKEN: {'ЕСТЬ' if config.BOT_TOKEN else 'НЕТ'}")
+    logger.info(f"PRICE_SINGLE_R15: {config.PRICE_SINGLE_R15}")
+    logger.info(f"PRICE_SET_R15: {config.PRICE_SET_R15}")
+    logger.info(f"PRICE_PREP_SINGLE: {config.PRICE_PREP_SINGLE}")
+    logger.info("=====================================")
+    
     # Проверяем наличие токена
     if not config.BOT_TOKEN:
         logger.error("BOT_TOKEN не найден в переменных окружения!")
