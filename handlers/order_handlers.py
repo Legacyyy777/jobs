@@ -25,6 +25,9 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
     """Рассчитывает цену заказа"""
     base_price = 0
     
+    # Логируем для отладки
+    logging.info(f"Расчет цены: set_type={set_type}, size={size}, alumochrome={alumochrome}")
+    
     # Базовая цена в зависимости от типа и размера
     if set_type == "single":
         if size == "R13":
@@ -83,6 +86,7 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
     if alumochrome:
         base_price += config.PRICE_ALUMOCHROME_EXTRA
     
+    logging.info(f"Итоговая цена: {base_price} руб.")
     return base_price
 
 @router.message(Command("start"))
@@ -327,22 +331,6 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     # Получаем все данные заказа
     data = await state.get_data()
     
-    # Формируем текст подтверждения
-    set_type_text = "один диск" if set_type == "single" else "комплект"
-    alumochrome_text = "Да" if alumochrome else "Нет"
-    
-    await callback.message.edit_text(
-        f"✅ <b>Заказ сформирован!</b>\n\n"
-        f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
-        f"🔹 <b>Тип:</b> {set_type_text}\n"
-        f"📏 <b>Размер:</b> {size}\n"
-        f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
-        f"💰 <b>Цена:</b> {price:,} руб.\n\n"
-        f"Заказ отправлен на рассмотрение администратору.",
-        parse_mode="HTML",
-        reply_markup=get_back_to_menu_keyboard()
-    )
-    
     # Создаем заказ в базе данных
     user_id = await db.get_or_create_user(
         callback.from_user.id,
@@ -362,6 +350,22 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         
         # Отправляем уведомление в чат модерации
         await send_admin_notification(callback.bot, order_id, data, callback.from_user.username or callback.from_user.full_name)
+        
+        # Формируем текст подтверждения
+        set_type_text = "один диск" if set_type == "single" else "комплект"
+        alumochrome_text = "Да" if alumochrome else "Нет"
+        
+        await callback.message.edit_text(
+            f"✅ <b>Заказ сформирован!</b>\n\n"
+            f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
+            f"🔹 <b>Тип:</b> {set_type_text}\n"
+            f"📏 <b>Размер:</b> {size}\n"
+            f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
+            f"💰 <b>Цена:</b> {price:,} руб.\n\n"
+            f"Заказ отправлен на рассмотрение администратору.",
+            parse_mode="HTML",
+            reply_markup=get_back_to_menu_keyboard()
+        )
         
     except Exception as e:
         logging.error(f"Ошибка создания заказа: {e}")
