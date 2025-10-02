@@ -38,6 +38,9 @@ class Config:
     PRICE_PREP_SINGLE = int(os.getenv('PRICE_PREP_SINGLE', 210))  # Подготовка одиночки
     PRICE_PREP_SET = int(os.getenv('PRICE_PREP_SET', 300))        # Подготовка комплекта
     
+    # Доплата за алюмохром
+    PRICE_ALUMOCHROME_EXTRA = int(os.getenv('PRICE_ALUMOCHROME_EXTRA', 300))
+    
     # Настройки базы данных
     DB_HOST = os.getenv('DB_HOST', 'db')
     DB_PORT = int(os.getenv('DB_PORT', 5432))

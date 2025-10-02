@@ -56,6 +56,8 @@ services:
       # Доплата за подготовку
       - PRICE_PREP_SINGLE=${PRICE_PREP_SINGLE:-210}
       - PRICE_PREP_SET=${PRICE_PREP_SET:-300}
+      # Доплата за алюмохром
+      - PRICE_ALUMOCHROME_EXTRA=${PRICE_ALUMOCHROME_EXTRA:-300}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_NAME=painter_bot

@@ -79,6 +79,10 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
     else:
         base_price += config.PRICE_PREP_SET
     
+    # Добавляем доплату за алюмохром
+    if alumochrome:
+        base_price += config.PRICE_ALUMOCHROME_EXTRA
+    
     return base_price
 
 @router.message(Command("start"))
