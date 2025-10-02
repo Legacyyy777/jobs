@@ -301,6 +301,8 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора размера диска"""
     size = callback.data.split("_")[1]  # R15, R16, etc.
     
+    logging.info(f"Выбран размер диска: {size}")
+    
     await state.update_data(size=size)
     
     await callback.message.edit_text(
@@ -311,6 +313,7 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
     )
     
     await state.set_state(OrderStates.waiting_for_alumochrome)
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("alumochrome_"), StateFilter(OrderStates.waiting_for_alumochrome))
 async def process_alumochrome(callback: CallbackQuery, state: FSMContext):

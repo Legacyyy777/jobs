@@ -23,22 +23,13 @@ def get_set_type_keyboard() -> InlineKeyboardMarkup:
 def get_size_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для выбора размера диска"""
     builder = InlineKeyboardBuilder()
-    # Первый ряд
-    builder.add(InlineKeyboardButton(text="R13", callback_data="size_R13"))
-    builder.add(InlineKeyboardButton(text="R14", callback_data="size_R14"))
-    builder.add(InlineKeyboardButton(text="R15", callback_data="size_R15"))
-    # Второй ряд
-    builder.add(InlineKeyboardButton(text="R16", callback_data="size_R16"))
-    builder.add(InlineKeyboardButton(text="R17", callback_data="size_R17"))
-    builder.add(InlineKeyboardButton(text="R18", callback_data="size_R18"))
-    # Третий ряд
-    builder.add(InlineKeyboardButton(text="R19", callback_data="size_R19"))
-    builder.add(InlineKeyboardButton(text="R20", callback_data="size_R20"))
-    builder.add(InlineKeyboardButton(text="R21", callback_data="size_R21"))
-    # Четвертый ряд
-    builder.add(InlineKeyboardButton(text="R22", callback_data="size_R22"))
-    builder.add(InlineKeyboardButton(text="R23", callback_data="size_R23"))
-    builder.adjust(3, 3, 3, 2)  # 3 кнопки в первых трех рядах, 2 в последнем
+    # Добавляем все размеры
+    sizes = ["R13", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21", "R22", "R23"]
+    for size in sizes:
+        builder.add(InlineKeyboardButton(text=size, callback_data=f"size_{size}"))
+    
+    # Размещаем по 2 кнопки в ряду для лучшей читаемости
+    builder.adjust(2)
     return builder.as_markup()
 
 def get_alumochrome_keyboard() -> InlineKeyboardMarkup:
