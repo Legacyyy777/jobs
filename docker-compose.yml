@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: painter_bot_db
+    environment:
+      POSTGRES_DB: painter_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    container_name: painter_bot
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
+      - PRICE_SINGLE_R15=${PRICE_SINGLE_R15:-500}
+      - PRICE_SINGLE_R16=${PRICE_SINGLE_R16:-600}
+      - PRICE_SINGLE_R17=${PRICE_SINGLE_R17:-700}
+      - PRICE_SET_R15=${PRICE_SET_R15:-1800}
+      - PRICE_SET_R16=${PRICE_SET_R16:-2000}
+      - PRICE_SET_R17=${PRICE_SET_R17:-2200}
+      - PRICE_ALUMOCHROME_EXTRA=${PRICE_ALUMOCHROME_EXTRA:-300}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=painter_bot
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  postgres_data:
