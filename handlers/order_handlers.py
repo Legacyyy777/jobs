@@ -190,30 +190,6 @@ async def process_non_photo(message: Message):
         reply_markup=get_cancel_keyboard()
     )
 
-@router.message()
-async def handle_any_message(message: Message, state: FSMContext):
-    """Обработчик для всех остальных сообщений"""
-    # Если пользователь не в процессе создания заказа, показываем главное меню
-    current_state = await state.get_state()
-    if current_state is None:
-        # Регистрируем пользователя в базе данных
-        user_id = await db.get_or_create_user(
-            message.from_user.id, 
-            message.from_user.full_name or message.from_user.username or "Unknown"
-        )
-        
-        await message.answer(
-            "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
-            "Выберите действие:",
-            parse_mode="HTML",
-            reply_markup=get_main_menu_keyboard()
-        )
-    else:
-        # Если пользователь в процессе создания заказа, но отправил что-то не то
-        await message.answer(
-            "❌ Неверный формат сообщения. Используйте кнопки для навигации.",
-            reply_markup=get_cancel_keyboard()
-        )
 
 @router.message(StateFilter(OrderStates.waiting_for_order_number))
 async def process_order_number(message: Message, state: FSMContext):
@@ -367,3 +343,28 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
         )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
+
+@router.message()
+async def handle_any_message(message: Message, state: FSMContext):
+    """Обработчик для всех остальных сообщений"""
+    # Если пользователь не в процессе создания заказа, показываем главное меню
+    current_state = await state.get_state()
+    if current_state is None:
+        # Регистрируем пользователя в базе данных
+        user_id = await db.get_or_create_user(
+            message.from_user.id, 
+            message.from_user.full_name or message.from_user.username or "Unknown"
+        )
+        
+        await message.answer(
+            "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
+            "Выберите действие:",
+            parse_mode="HTML",
+            reply_markup=get_main_menu_keyboard()
+        )
+    else:
+        # Если пользователь в процессе создания заказа, но отправил что-то не то
+        await message.answer(
+            "❌ Неверный формат сообщения. Используйте кнопки для навигации.",
+            reply_markup=get_cancel_keyboard()
+        )
