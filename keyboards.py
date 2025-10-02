@@ -63,6 +63,15 @@ def get_back_to_menu_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     return builder.as_markup()
 
+def get_order_exists_keyboard(order_number: str) -> InlineKeyboardMarkup:
+    """Клавиатура когда заказ с таким номером уже существует"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="✏️ Перезаписать заказ", callback_data=f"overwrite_order_{order_number}"))
+    builder.add(InlineKeyboardButton(text="🔄 Ввести другой номер", callback_data="change_order_number"))
+    builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"))
+    builder.adjust(1)
+    return builder.as_markup()
+
 def get_start_keyboard() -> ReplyKeyboardMarkup:
     """Обычная клавиатура с кнопкой Старт"""
     builder = ReplyKeyboardBuilder()

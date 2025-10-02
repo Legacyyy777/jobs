@@ -13,7 +13,8 @@ from keyboards import (
     get_alumochrome_keyboard,
     get_cancel_keyboard,
     get_back_to_menu_keyboard,
-    get_start_keyboard
+    get_start_keyboard,
+    get_order_exists_keyboard
 )
 from config import config
 from db import db
@@ -226,6 +227,16 @@ async def process_order_number(message: Message, state: FSMContext):
         await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
         return
     
+    # Проверяем, не существует ли уже такой номер заказа
+    if await db.check_order_number_exists(order_number):
+        await message.answer(
+            f"⚠️ <b>Заказ с номером '{order_number}' уже существует!</b>\n\n"
+            f"Что вы хотите сделать?",
+            parse_mode="HTML",
+            reply_markup=get_order_exists_keyboard(order_number)
+        )
+        return
+    
     await state.update_data(order_number=order_number)
     
     await message.answer(
@@ -312,20 +323,76 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
-    order_id = await db.create_order(
-        order_number=data["order_number"],
-        user_id=user_id,
-        set_type=set_type,
-        size=size,
-        alumochrome=alumochrome,
-        price=price,
-        photo_file_id=data["photo_file_id"]
-    )
-    
-    # Отправляем уведомление в чат модерации
-    await send_admin_notification(callback.bot, order_id, data, callback.from_user.username or callback.from_user.full_name)
+    try:
+        order_id = await db.create_order(
+            order_number=data["order_number"],
+            user_id=user_id,
+            set_type=set_type,
+            size=size,
+            alumochrome=alumochrome,
+            price=price,
+            photo_file_id=data["photo_file_id"]
+        )
+        
+        # Отправляем уведомление в чат модерации
+        await send_admin_notification(callback.bot, order_id, data, callback.from_user.username or callback.from_user.full_name)
+        
+    except Exception as e:
+        logging.error(f"Ошибка создания заказа: {e}")
+        await callback.message.edit_text(
+            f"❌ <b>Ошибка создания заказа!</b>\n\n"
+            f"Заказ с номером '{data['order_number']}' уже существует.\n"
+            f"Пожалуйста, используйте другой номер заказа.",
+            parse_mode="HTML",
+            reply_markup=get_back_to_menu_keyboard()
+        )
+        await callback.answer("❌ Ошибка: номер заказа уже существует")
+        return
     
     await state.set_state(OrderStates.order_confirmed)
+
+@router.callback_query(F.data.startswith("overwrite_order_"))
+async def process_overwrite_order(callback: CallbackQuery, state: FSMContext):
+    """Обработка перезаписи заказа"""
+    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
+    
+    # Удаляем существующий заказ
+    deleted = await db.delete_order_by_number(order_number)
+    
+    if deleted:
+        # Сохраняем номер заказа в состояние
+        await state.update_data(order_number=order_number)
+        
+        await callback.message.edit_text(
+            f"✅ <b>Старый заказ удален!</b>\n\n"
+            f"📋 <b>Номер заказа:</b> {order_number}\n\n"
+            f"Выберите тип заказа:",
+            parse_mode="HTML",
+            reply_markup=get_set_type_keyboard()
+        )
+        
+        await state.set_state(OrderStates.waiting_for_set_type)
+        await callback.answer("✅ Старый заказ удален, продолжаем создание нового")
+    else:
+        await callback.message.edit_text(
+            "❌ <b>Ошибка удаления заказа!</b>\n\n"
+            "Попробуйте еще раз или введите другой номер заказа.",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        await callback.answer("❌ Ошибка удаления заказа")
+
+@router.callback_query(F.data == "change_order_number")
+async def process_change_order_number(callback: CallbackQuery, state: FSMContext):
+    """Обработка смены номера заказа"""
+    await callback.message.edit_text(
+        "📝 <b>Введите новый номер заказа:</b>",
+        parse_mode="HTML",
+        reply_markup=get_cancel_keyboard()
+    )
+    
+    await state.set_state(OrderStates.waiting_for_order_number)
+    await callback.answer("Введите новый номер заказа")
 
 @router.callback_query(F.data == "cancel")
 async def process_cancel(callback: CallbackQuery, state: FSMContext):

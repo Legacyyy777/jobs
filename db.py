@@ -139,5 +139,21 @@ class Database:
             )
             return result or 0
 
+    async def check_order_number_exists(self, order_number: str) -> bool:
+        """Проверяет, существует ли номер заказа"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM orders WHERE order_number = $1)", order_number
+            )
+            return result or False
+
+    async def delete_order_by_number(self, order_number: str) -> bool:
+        """Удаляет заказ по номеру"""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM orders WHERE order_number = $1", order_number
+            )
+            return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
+
 # Глобальный экземпляр базы данных
 db = Database()
