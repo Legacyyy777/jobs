@@ -1,7 +1,11 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Настройка логирования для отладки
+logging.basicConfig(level=logging.INFO)
 
 class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -49,3 +53,32 @@ class Config:
     DB_PASSWORD = os.getenv('DB_PASSWORD', 'postgres')
 
 config = Config()
+
+# Логируем загруженные цены для отладки
+logging.info("=== ЗАГРУЖЕННЫЕ ЦЕНЫ ===")
+logging.info(f"PRICE_SINGLE_R13: {config.PRICE_SINGLE_R13}")
+logging.info(f"PRICE_SINGLE_R14: {config.PRICE_SINGLE_R14}")
+logging.info(f"PRICE_SINGLE_R15: {config.PRICE_SINGLE_R15}")
+logging.info(f"PRICE_SINGLE_R16: {config.PRICE_SINGLE_R16}")
+logging.info(f"PRICE_SINGLE_R17: {config.PRICE_SINGLE_R17}")
+logging.info(f"PRICE_SINGLE_R18: {config.PRICE_SINGLE_R18}")
+logging.info(f"PRICE_SINGLE_R19: {config.PRICE_SINGLE_R19}")
+logging.info(f"PRICE_SINGLE_R20: {config.PRICE_SINGLE_R20}")
+logging.info(f"PRICE_SINGLE_R21: {config.PRICE_SINGLE_R21}")
+logging.info(f"PRICE_SINGLE_R22: {config.PRICE_SINGLE_R22}")
+logging.info(f"PRICE_SINGLE_R23: {config.PRICE_SINGLE_R23}")
+logging.info(f"PRICE_SET_R13: {config.PRICE_SET_R13}")
+logging.info(f"PRICE_SET_R14: {config.PRICE_SET_R14}")
+logging.info(f"PRICE_SET_R15: {config.PRICE_SET_R15}")
+logging.info(f"PRICE_SET_R16: {config.PRICE_SET_R16}")
+logging.info(f"PRICE_SET_R17: {config.PRICE_SET_R17}")
+logging.info(f"PRICE_SET_R18: {config.PRICE_SET_R18}")
+logging.info(f"PRICE_SET_R19: {config.PRICE_SET_R19}")
+logging.info(f"PRICE_SET_R20: {config.PRICE_SET_R20}")
+logging.info(f"PRICE_SET_R21: {config.PRICE_SET_R21}")
+logging.info(f"PRICE_SET_R22: {config.PRICE_SET_R22}")
+logging.info(f"PRICE_SET_R23: {config.PRICE_SET_R23}")
+logging.info(f"PRICE_PREP_SINGLE: {config.PRICE_PREP_SINGLE}")
+logging.info(f"PRICE_PREP_SET: {config.PRICE_PREP_SET}")
+logging.info(f"PRICE_ALUMOCHROME_EXTRA: {config.PRICE_ALUMOCHROME_EXTRA}")
+logging.info("========================")
