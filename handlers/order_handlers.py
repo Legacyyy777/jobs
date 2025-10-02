@@ -27,35 +27,57 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
     
     # Базовая цена в зависимости от типа и размера
     if set_type == "single":
-        if size == "R15":
+        if size == "R13":
+            base_price = config.PRICE_SINGLE_R13
+        elif size == "R14":
+            base_price = config.PRICE_SINGLE_R14
+        elif size == "R15":
             base_price = config.PRICE_SINGLE_R15
         elif size == "R16":
             base_price = config.PRICE_SINGLE_R16
         elif size == "R17":
             base_price = config.PRICE_SINGLE_R17
         elif size == "R18":
-            base_price = config.PRICE_SINGLE_R16 + 100  # R18 = R16 + 100
+            base_price = config.PRICE_SINGLE_R18
         elif size == "R19":
-            base_price = config.PRICE_SINGLE_R17 + 100  # R19 = R17 + 100
+            base_price = config.PRICE_SINGLE_R19
         elif size == "R20":
-            base_price = config.PRICE_SINGLE_R17 + 200  # R20 = R17 + 200
+            base_price = config.PRICE_SINGLE_R20
+        elif size == "R21":
+            base_price = config.PRICE_SINGLE_R21
+        elif size == "R22":
+            base_price = config.PRICE_SINGLE_R22
+        elif size == "R23":
+            base_price = config.PRICE_SINGLE_R23
     else:  # set
-        if size == "R15":
+        if size == "R13":
+            base_price = config.PRICE_SET_R13
+        elif size == "R14":
+            base_price = config.PRICE_SET_R14
+        elif size == "R15":
             base_price = config.PRICE_SET_R15
         elif size == "R16":
             base_price = config.PRICE_SET_R16
         elif size == "R17":
             base_price = config.PRICE_SET_R17
         elif size == "R18":
-            base_price = config.PRICE_SET_R16 + 200  # R18 = R16 + 200
+            base_price = config.PRICE_SET_R18
         elif size == "R19":
-            base_price = config.PRICE_SET_R17 + 200  # R19 = R17 + 200
+            base_price = config.PRICE_SET_R19
         elif size == "R20":
-            base_price = config.PRICE_SET_R17 + 400  # R20 = R17 + 400
+            base_price = config.PRICE_SET_R20
+        elif size == "R21":
+            base_price = config.PRICE_SET_R21
+        elif size == "R22":
+            base_price = config.PRICE_SET_R22
+        elif size == "R23":
+            base_price = config.PRICE_SET_R23
     
-    # Добавляем доплату за алюмохром
-    if alumochrome:
-        base_price += config.PRICE_ALUMOCHROME_EXTRA
+    # Добавляем доплату за подготовку
+    if set_type == "single":
+        base_price += config.PRICE_PREP_SINGLE
+    else:
+        base_price += config.PRICE_PREP_SET
     
     return base_price
 
