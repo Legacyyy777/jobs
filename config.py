@@ -6,6 +6,7 @@ load_dotenv()
 class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', 0))
+    MODERATION_CHAT_ID = os.getenv('MODERATION_CHAT_ID')  # ID чата/канала для модерации заказов
     
     # Цены за одиночные диски
     PRICE_SINGLE_R15 = int(os.getenv('PRICE_SINGLE_R15', 500))

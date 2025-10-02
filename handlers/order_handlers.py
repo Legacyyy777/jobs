@@ -310,9 +310,9 @@ async def process_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 async def send_admin_notification(bot, order_id: int, order_data: dict, username: str):
-    """Отправляет уведомление админу о новом заказе"""
-    if not config.ADMIN_CHAT_ID:
-        logging.warning("ADMIN_CHAT_ID не настроен, уведомление не отправлено")
+    """Отправляет уведомление в чат модерации о новом заказе"""
+    if not config.MODERATION_CHAT_ID:
+        logging.warning("MODERATION_CHAT_ID не настроен, уведомление не отправлено")
         return
     
     set_type_text = "один диск" if order_data["set_type"] == "single" else "комплект"
@@ -331,11 +331,11 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
     try:
         from keyboards import get_admin_order_keyboard
         await bot.send_photo(
-            chat_id=config.ADMIN_CHAT_ID,
+            chat_id=config.MODERATION_CHAT_ID,
             photo=order_data["photo_file_id"],
             caption=text,
             parse_mode="HTML",
             reply_markup=get_admin_order_keyboard(order_id)
         )
     except Exception as e:
-        logging.error(f"Ошибка отправки уведомления админу: {e}")
+        logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")

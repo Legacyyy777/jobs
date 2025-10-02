@@ -9,9 +9,31 @@ from keyboards import get_admin_order_keyboard
 
 router = Router()
 
+async def is_moderator(user_id: int, chat_id: int, bot) -> bool:
+    """Проверяет, является ли пользователь модератором в чате"""
+    try:
+        # Проверяем, является ли пользователь администратором бота
+        if user_id == config.ADMIN_CHAT_ID:
+            return True
+            
+        # Проверяем права в чате модерации
+        if config.MODERATION_CHAT_ID:
+            chat_member = await bot.get_chat_member(chat_id, user_id)
+            return chat_member.status in ['administrator', 'creator']
+        
+        return False
+    except Exception as e:
+        logging.error(f"Ошибка проверки прав модератора: {e}")
+        return False
+
 @router.callback_query(F.data.startswith("admin_confirm_"))
 async def admin_confirm_order(callback: CallbackQuery):
-    """Админ подтверждает заказ"""
+    """Модератор подтверждает заказ"""
+    # Проверяем права модератора
+    if not await is_moderator(callback.from_user.id, callback.message.chat.id, callback.bot):
+        await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
+        return
+    
     order_id = int(callback.data.split("_")[2])
     
     # Получаем данные заказа
@@ -52,7 +74,12 @@ async def admin_confirm_order(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_reject_"))
 async def admin_reject_order(callback: CallbackQuery):
-    """Админ отклоняет заказ"""
+    """Модератор отклоняет заказ"""
+    # Проверяем права модератора
+    if not await is_moderator(callback.from_user.id, callback.message.chat.id, callback.bot):
+        await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
+        return
+    
     order_id = int(callback.data.split("_")[2])
     
     # Получаем данные заказа
@@ -92,7 +119,12 @@ async def admin_reject_order(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith("admin_edit_"))
 async def admin_edit_order(callback: CallbackQuery):
-    """Админ хочет исправить заказ"""
+    """Модератор хочет исправить заказ"""
+    # Проверяем права модератора
+    if not await is_moderator(callback.from_user.id, callback.message.chat.id, callback.bot):
+        await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
+        return
+    
     order_id = int(callback.data.split("_")[2])
     
     # Получаем данные заказа
