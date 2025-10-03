@@ -92,6 +92,10 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext):
     """Обработчик команды /start"""
+    # Игнорируем сообщения из чата модерации
+    if str(message.chat.id) == str(config.MODERATION_CHAT_ID):
+        return
+    
     await state.clear()
     
     # Регистрируем пользователя в базе данных
@@ -105,12 +109,6 @@ async def cmd_start(message: Message, state: FSMContext):
         "Выберите действие:",
         parse_mode="HTML",
         reply_markup=get_main_menu_keyboard()
-    )
-    
-    # Показываем обычную клавиатуру с кнопкой Старт
-    await message.answer(
-        "Используйте кнопки ниже для навигации:",
-        reply_markup=get_start_keyboard()
     )
 
 @router.callback_query(F.data == "main_menu")
@@ -126,24 +124,6 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-@router.callback_query(F.data == "start_menu")
-async def show_start_menu(callback: CallbackQuery, state: FSMContext):
-    """Показать стартовое меню"""
-    await state.clear()
-    
-    # Регистрируем пользователя в базе данных
-    user_id = await db.get_or_create_user(
-        callback.from_user.id, 
-        callback.from_user.full_name or callback.from_user.username or "Unknown"
-    )
-    
-    await callback.message.edit_text(
-        "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_main_menu_keyboard()
-    )
-    await callback.answer()
 
 @router.callback_query(F.data == "create_order")
 async def start_create_order(callback: CallbackQuery, state: FSMContext):
@@ -489,27 +469,14 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
 
-@router.message(F.text == "🚀 Старт")
-async def handle_start_button(message: Message, state: FSMContext):
-    """Обработчик кнопки Старт"""
-    await state.clear()
-    
-    # Регистрируем пользователя в базе данных
-    user_id = await db.get_or_create_user(
-        message.from_user.id, 
-        message.from_user.full_name or message.from_user.username or "Unknown"
-    )
-    
-    await message.answer(
-        "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_main_menu_keyboard()
-    )
 
 @router.message()
 async def handle_any_message(message: Message, state: FSMContext):
     """Обработчик для всех остальных сообщений"""
+    # Игнорируем сообщения из чата модерации
+    if str(message.chat.id) == str(config.MODERATION_CHAT_ID):
+        return
+    
     # Если пользователь не в процессе создания заказа, показываем главное меню
     current_state = await state.get_state()
     if current_state is None:

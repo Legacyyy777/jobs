@@ -4,7 +4,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     """Главное меню бота"""
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="🚀 Старт", callback_data="start_menu"))
     builder.add(InlineKeyboardButton(text="🎨 Создать заказ", callback_data="create_order"))
     builder.add(InlineKeyboardButton(text="💰 Заработок за день", callback_data="earnings_day"))
     builder.add(InlineKeyboardButton(text="📊 Заработок за месяц", callback_data="earnings_month"))
@@ -73,8 +72,8 @@ def get_order_exists_keyboard(order_number: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 def get_start_keyboard() -> ReplyKeyboardMarkup:
-    """Обычная клавиатура с кнопкой Старт"""
+    """Обычная клавиатура (пустая)"""
     builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text="🚀 Старт"))
+    # Убираем кнопку Старт
     builder.adjust(1)
     return builder.as_markup(resize_keyboard=True, one_time_keyboard=False)
