@@ -363,7 +363,15 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         )
         
         # Отправляем уведомление в чат модерации
-        await send_admin_notification(callback.bot, order_id, data, callback.from_user.username or callback.from_user.full_name)
+        order_data = {
+            "order_number": data["order_number"],
+            "set_type": set_type,
+            "size": size,
+            "alumochrome": alumochrome,
+            "price": price,
+            "photo_file_id": data["photo_file_id"]
+        }
+        await send_admin_notification(callback.bot, order_id, order_data, callback.from_user.username or callback.from_user.full_name)
         
         # Формируем текст подтверждения
         set_type_text = "один диск" if set_type == "single" else "комплект"
