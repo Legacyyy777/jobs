@@ -125,11 +125,11 @@ class Database:
     async def get_user_profession(self, tg_id: int) -> str:
         """Получает профессию пользователя"""
         async with self.pool.acquire() as conn:
-            profession = await conn.fetchval(
+            user = await conn.fetchrow(
                 "SELECT profession FROM users WHERE tg_id = $1",
                 tg_id
             )
-            return profession or "painter"
+            return user['profession'] if user else None
 
     async def create_order(self, order_number: str, user_id: int, profession: str, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 

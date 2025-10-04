@@ -213,8 +213,9 @@ async def cmd_start(message: Message, state: FSMContext):
     
     # Проверяем, есть ли уже профессия у пользователя
     user_profession = await db.get_user_profession(message.from_user.id)
+    logging.info(f"User {message.from_user.id} profession: {user_profession}")
     
-    if user_profession:
+    if user_profession is not None:
         # Пользователь уже выбрал профессию, показываем главное меню
         if user_profession == "painter":
             text = "👋 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
@@ -269,8 +270,16 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
     
     if user_profession == "painter":
         text = "👋 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
-    else:
+    elif user_profession == "sandblaster":
         text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
+    else:
+        # Если профессия не определена, показываем выбор профессии
+        text = "👨‍🎨 <b>Выберите вашу профессию:</b>"
+        keyboard = get_profession_keyboard()
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(UserStates.waiting_for_profession)
+        await callback.answer()
+        return
     
     keyboard = get_main_menu_keyboard()
     
@@ -283,6 +292,15 @@ async def start_create_order(callback: CallbackQuery, state: FSMContext):
     """Начать создание заказа"""
     # Получаем профессию пользователя из базы данных
     user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    if user_profession is None:
+        # Если профессия не определена, показываем выбор профессии
+        text = "👨‍🎨 <b>Сначала выберите вашу профессию:</b>"
+        keyboard = get_profession_keyboard()
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(UserStates.waiting_for_profession)
+        await callback.answer()
+        return
     
     profession_text = "🎨 Маляр" if user_profession == "painter" else "💨 Пескоструйщик"
     text = f"📸 <b>Создание заказа ({profession_text})</b>\n\nОтправьте фото диска(ов), который нужно покрасить:"
@@ -361,6 +379,13 @@ async def process_photo(message: Message, state: FSMContext):
     # Получаем профессию пользователя из базы данных
     user_profession = await db.get_user_profession(message.from_user.id)
     
+    if user_profession is None:
+        await message.answer(
+            "❌ <b>Ошибка!</b>\n\nСначала выберите вашу профессию. Нажмите /start",
+            parse_mode="HTML"
+        )
+        return
+    
     await state.update_data(photo_file_id=photo.file_id, profession=user_profession)
     
     await message.answer(
@@ -406,6 +431,13 @@ async def process_order_number(message: Message, state: FSMContext):
     
     # Получаем профессию пользователя из базы данных
     user_profession = await db.get_user_profession(message.from_user.id)
+    
+    if user_profession is None:
+        await message.answer(
+            "❌ <b>Ошибка!</b>\n\nСначала выберите вашу профессию. Нажмите /start",
+            parse_mode="HTML"
+        )
+        return
     
     await state.update_data(order_number=order_number, profession=user_profession)
     
