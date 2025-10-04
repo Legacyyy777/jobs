@@ -8,3 +8,8 @@ class OrderStates(StatesGroup):
     waiting_for_size = State()
     waiting_for_alumochrome = State()
     order_confirmed = State()
+
+class EditOrderStates(StatesGroup):
+    """Состояния для FSM редактирования заказов"""
+    waiting_for_order_number = State()
+    waiting_for_new_price = State()

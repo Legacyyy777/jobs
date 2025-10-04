@@ -5,7 +5,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import config
 from db import db
-from handlers import order_handlers, admin_handlers
+from handlers import order_handlers, admin_handlers, edit_handlers
 
 # Настройка логирования
 logging.basicConfig(
@@ -37,6 +37,7 @@ async def main():
     # Регистрируем роутеры
     dp.include_router(order_handlers.router)
     dp.include_router(admin_handlers.router)
+    dp.include_router(edit_handlers.router)
     
     try:
         # Подключаемся к базе данных с повторными попытками

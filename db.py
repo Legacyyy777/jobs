@@ -166,5 +166,52 @@ class Database:
             )
             return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
 
+    async def get_user_orders(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """Получает заказы пользователя"""
+        async with self.pool.acquire() as conn:
+            orders = await conn.fetch("""
+                SELECT * FROM orders 
+                WHERE user_id = $1 
+                ORDER BY created_at DESC 
+                LIMIT $2
+            """, user_id, limit)
+            return [dict(order) for order in orders]
+
+    async def get_order_by_number(self, order_number: str) -> Optional[Dict[str, Any]]:
+        """Получает заказ по номеру"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT o.*, u.tg_id, u.name as user_name
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.order_number = $1
+            """, order_number)
+            return dict(order) if order else None
+
+    async def update_order_price(self, order_id: int, new_price: int) -> bool:
+        """Обновляет цену заказа"""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE orders 
+                SET price = $1, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = $2
+            """, new_price, order_id)
+            return result.split()[-1] == "1"
+
+    async def delete_order_by_id(self, order_id: int) -> bool:
+        """Удаляет заказ по ID"""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM orders WHERE id = $1", order_id)
+            return result.split()[-1] == "1"
+
+    async def get_user_order_by_id(self, user_id: int, order_id: int) -> Optional[Dict[str, Any]]:
+        """Получает заказ пользователя по ID"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT * FROM orders 
+                WHERE id = $1 AND user_id = $2
+            """, order_id, user_id)
+            return dict(order) if order else None
+
 # Глобальный экземпляр базы данных
 db = Database()

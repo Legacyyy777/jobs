@@ -351,7 +351,7 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
             "price": price,
             "photo_file_id": data["photo_file_id"]
         }
-        await send_admin_notification(callback.bot, order_id, order_data, callback.from_user.username or callback.from_user.full_name)
+        await send_admin_notification(callback.bot, data["order_number"], order_data, callback.from_user.username or callback.from_user.full_name)
         
         # Формируем текст подтверждения
         set_type_text = "один диск" if set_type == "single" else "комплект"
@@ -438,7 +438,7 @@ async def process_cancel(callback: CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-async def send_admin_notification(bot, order_id: int, order_data: dict, username: str):
+async def send_admin_notification(bot, order_number: str, order_data: dict, username: str):
     """Отправляет уведомление в чат модерации о новом заказе"""
     if not config.MODERATION_CHAT_ID:
         logging.warning("MODERATION_CHAT_ID не настроен, уведомление не отправлено")
@@ -448,9 +448,9 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
     alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
     
     text = (
-        f"🆕 <b>Новый заказ #{order_id}</b>\n\n"
+        f"🆕 <b>Новый заказ</b>\n\n"
         f"👤 <b>Исполнитель:</b> @{username}\n"
-        f"📋 <b>Номер заказа:</b> {order_data.get('order_number', 'Не указан')}\n"
+        f"📋 <b>Номер заказа:</b> {order_number}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
         f"📏 <b>Размер:</b> {order_data.get('size', 'Не указан')}\n"
         f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
@@ -464,7 +464,7 @@ async def send_admin_notification(bot, order_id: int, order_data: dict, username
             photo=order_data["photo_file_id"],
             caption=text,
             parse_mode="HTML",
-            reply_markup=get_admin_order_keyboard(order_id)
+            reply_markup=get_admin_order_keyboard(order_number)
         )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")

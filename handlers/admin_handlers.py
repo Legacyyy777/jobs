@@ -34,22 +34,22 @@ async def admin_confirm_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_id = int(callback.data.split("_")[2])
+    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
     
-    # Получаем данные заказа
-    order = await db.get_order_by_id(order_id)
+    # Получаем данные заказа по номеру
+    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
     
     # Обновляем статус заказа
-    await db.update_order_status(order_id, "confirmed")
+    await db.update_order_status(order['id'], "confirmed")
     
     # Уведомляем маляра
     try:
         await callback.bot.send_message(
             chat_id=order["tg_id"],
-            text=f"✅ <b>Заказ #{order_id} подтвержден!</b>\n\n"
+            text=f"✅ <b>Заказ подтвержден!</b>\n\n"
                  f"📋 Номер: {order['order_number']}\n"
                  f"💰 Сумма: {order['price']:,} руб.\n\n"
                  f"Спасибо за работу!",
@@ -80,22 +80,22 @@ async def admin_reject_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_id = int(callback.data.split("_")[2])
+    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
     
-    # Получаем данные заказа
-    order = await db.get_order_by_id(order_id)
+    # Получаем данные заказа по номеру
+    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
     
     # Обновляем статус заказа
-    await db.update_order_status(order_id, "rejected")
+    await db.update_order_status(order['id'], "rejected")
     
     # Уведомляем маляра
     try:
         await callback.bot.send_message(
             chat_id=order["tg_id"],
-            text=f"❌ <b>Заказ #{order_id} отклонен</b>\n\n"
+            text=f"❌ <b>Заказ отклонен</b>\n\n"
                  f"📋 Номер: {order['order_number']}\n\n"
                  f"Обратитесь к администратору для уточнения деталей.",
             parse_mode="HTML"
@@ -125,10 +125,10 @@ async def admin_edit_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_id = int(callback.data.split("_")[2])
+    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
     
-    # Получаем данные заказа
-    order = await db.get_order_by_id(order_id)
+    # Получаем данные заказа по номеру
+    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
@@ -137,7 +137,7 @@ async def admin_edit_order(callback: CallbackQuery):
     try:
         await callback.bot.send_message(
             chat_id=order["tg_id"],
-            text=f"✏️ <b>Заказ #{order_id} требует исправления</b>\n\n"
+            text=f"✏️ <b>Заказ требует исправления</b>\n\n"
                  f"📋 Номер: {order['order_number']}\n\n"
                  f"Обратитесь к администратору для уточнения деталей.\n"
                  f"Для создания нового заказа отправьте фото диска(ов).",
