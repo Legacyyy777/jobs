@@ -24,6 +24,7 @@ class Config:
     PRICE_SINGLE_R21 = int(os.getenv('PRICE_SINGLE_R21', 1200))
     PRICE_SINGLE_R22 = int(os.getenv('PRICE_SINGLE_R22', 1200))
     PRICE_SINGLE_R23 = int(os.getenv('PRICE_SINGLE_R23', 1300))
+    PRICE_SINGLE_R24 = int(os.getenv('PRICE_SINGLE_R24', 1500))
     
     # Цены за комплекты
     PRICE_SET_R13 = int(os.getenv('PRICE_SET_R13', 700))
@@ -37,6 +38,7 @@ class Config:
     PRICE_SET_R21 = int(os.getenv('PRICE_SET_R21', 1800))
     PRICE_SET_R22 = int(os.getenv('PRICE_SET_R22', 2000))
     PRICE_SET_R23 = int(os.getenv('PRICE_SET_R23', 2200))
+    PRICE_SET_R24 = int(os.getenv('PRICE_SET_R24', 2500))
     
     # Доплата за подготовку
     PRICE_PREP_SINGLE = int(os.getenv('PRICE_PREP_SINGLE', 210))  # Подготовка одиночки

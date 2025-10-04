@@ -77,6 +77,8 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
             base_price = config.PRICE_SINGLE_R22
         elif size == "R23":
             base_price = config.PRICE_SINGLE_R23
+        elif size == "R24":
+            base_price = config.PRICE_SINGLE_R24
     else:  # set
         if size == "R13":
             base_price = config.PRICE_SET_R13
@@ -100,6 +102,8 @@ def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
             base_price = config.PRICE_SET_R22
         elif size == "R23":
             base_price = config.PRICE_SET_R23
+        elif size == "R24":
+            base_price = config.PRICE_SET_R24
     
     # Добавляем доплату за подготовку
     if set_type == "single":

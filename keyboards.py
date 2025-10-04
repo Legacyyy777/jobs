@@ -24,7 +24,7 @@ def get_size_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для выбора размера диска"""
     builder = InlineKeyboardBuilder()
     # Добавляем все размеры
-    sizes = ["R13", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21", "R22", "R23"]
+    sizes = ["R13", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21", "R22", "R23", "R24"]
     for size in sizes:
         builder.add(InlineKeyboardButton(text=size, callback_data=f"size_{size}"))
     
