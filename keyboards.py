@@ -88,6 +88,25 @@ def get_edit_orders_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+def get_my_orders_keyboard(orders: list) -> InlineKeyboardMarkup:
+    """Клавиатура для списка заказов пользователя"""
+    builder = InlineKeyboardBuilder()
+    
+    # Добавляем кнопки для каждого заказа
+    for order in orders:
+        builder.add(InlineKeyboardButton(
+            text=f"📋 Заказ #{order['order_number']}",
+            callback_data=f"order_actions_{order['id']}"
+        ))
+    
+    # Добавляем кнопки навигации
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="edit_orders"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    
+    # Размещаем кнопки заказов по 1 в ряду, навигационные кнопки отдельно
+    builder.adjust(1, 2)
+    return builder.as_markup()
+
 def get_order_actions_keyboard(order_id: int) -> InlineKeyboardMarkup:
     """Клавиатура действий с заказом"""
     builder = InlineKeyboardBuilder()

@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from handlers.fsm import EditOrderStates
 from keyboards import (
     get_edit_orders_keyboard,
+    get_my_orders_keyboard,
     get_order_actions_keyboard,
     get_status_keyboard,
     get_confirm_delete_keyboard,
@@ -93,7 +94,8 @@ async def show_my_orders(callback: CallbackQuery):
         for i, order in enumerate(orders, 1):
             text += f"{i}. {format_order_info(order)}\n\n"
         text = text[:4000]  # Ограничиваем длину сообщения
-        keyboard = get_edit_orders_keyboard()
+        # Создаем клавиатуру с кнопками для каждого заказа
+        keyboard = get_my_orders_keyboard(orders)
     
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
