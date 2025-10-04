@@ -5,9 +5,11 @@ from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from typing import Callable, Dict, Any, Awaitable
 import logging
-from main import is_database_available
 
 logger = logging.getLogger(__name__)
+
+# Глобальная переменная для отслеживания состояния БД
+_db_available = False
 
 class DatabaseMiddleware(BaseMiddleware):
     """Middleware для проверки доступности базы данных"""
@@ -21,7 +23,7 @@ class DatabaseMiddleware(BaseMiddleware):
         """Проверяет доступность БД перед выполнением handler"""
         
         # Проверяем доступность базы данных
-        if not is_database_available():
+        if not _db_available:
             # Если это сообщение от пользователя, отправляем уведомление
             if hasattr(event, 'message') and event.message:
                 try:
@@ -38,3 +40,12 @@ class DatabaseMiddleware(BaseMiddleware):
         
         # Если БД доступна, выполняем handler
         return await handler(event, data)
+
+def set_database_available(status: bool):
+    """Устанавливает статус доступности базы данных"""
+    global _db_available
+    _db_available = status
+
+def is_database_available() -> bool:
+    """Проверяет доступность базы данных"""
+    return _db_available
