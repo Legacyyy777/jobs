@@ -234,24 +234,16 @@ class Database:
             return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
 
     async def get_user_orders(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
-        """Получает заказы пользователя с той же профессией"""
+        """Получает только заказы конкретного пользователя"""
         async with self.pool.acquire() as conn:
-            # Сначала получаем профессию пользователя
-            user_profession = await conn.fetchval(
-                "SELECT profession FROM users WHERE id = $1", user_id
-            )
-            
-            if not user_profession:
-                return []
-            
-            # Получаем заказы только пользователей с той же профессией
+            # Получаем только заказы конкретного пользователя
             orders = await conn.fetch("""
                 SELECT o.*, u.profession FROM orders o
                 JOIN users u ON o.user_id = u.id
-                WHERE u.profession = $1
+                WHERE o.user_id = $1
                 ORDER BY o.created_at DESC 
                 LIMIT $2
-            """, user_profession, limit)
+            """, user_id, limit)
             return [dict(order) for order in orders]
 
     async def get_order_by_number(self, order_number: str) -> Optional[Dict[str, Any]]:
