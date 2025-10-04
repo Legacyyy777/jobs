@@ -927,8 +927,14 @@ async def process_overwrite_order(callback: CallbackQuery, state: FSMContext):
     """Обработка перезаписи заказа"""
     order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
     
-    # Удаляем существующий заказ
-    deleted = await db.delete_order_by_number(order_number)
+    # Получаем профессию пользователя
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    if not user_profession:
+        await callback.answer("❌ Профессия не определена", show_alert=True)
+        return
+    
+    # Удаляем существующий заказ только для этой профессии
+    deleted = await db.delete_order_by_number_and_profession(order_number, user_profession)
     
     if deleted:
         # Сохраняем номер заказа в состояние

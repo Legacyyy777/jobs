@@ -241,6 +241,16 @@ class Database:
                 "DELETE FROM orders WHERE order_number = $1", order_number
             )
             return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
+    
+    async def delete_order_by_number_and_profession(self, order_number: str, profession: str) -> bool:
+        """Удаляет заказ по номеру и профессии"""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("""
+                DELETE FROM orders 
+                WHERE order_number = $1 
+                AND user_id IN (SELECT id FROM users WHERE profession = $2)
+            """, order_number, profession)
+            return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
 
     async def get_user_orders(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
         """Получает только заказы конкретного пользователя"""
@@ -256,14 +266,26 @@ class Database:
             return [dict(order) for order in orders]
 
     async def get_order_by_number(self, order_number: str) -> Optional[Dict[str, Any]]:
-        """Получает заказ по номеру"""
+        """Получает заказ по номеру (возвращает первый найденный)"""
         async with self.pool.acquire() as conn:
             order = await conn.fetchrow("""
-                SELECT o.*, u.tg_id, u.name as user_name
+                SELECT o.*, u.tg_id, u.name as user_name, u.profession
                 FROM orders o
                 JOIN users u ON o.user_id = u.id
                 WHERE o.order_number = $1
+                LIMIT 1
             """, order_number)
+            return dict(order) if order else None
+    
+    async def get_order_by_number_and_profession(self, order_number: str, profession: str) -> Optional[Dict[str, Any]]:
+        """Получает заказ по номеру и профессии"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT o.*, u.tg_id, u.name as user_name, u.profession
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.order_number = $1 AND u.profession = $2
+            """, order_number, profession)
             return dict(order) if order else None
 
     async def update_order_price(self, order_id: int, new_price: int) -> bool:

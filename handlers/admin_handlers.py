@@ -45,8 +45,9 @@ async def admin_confirm_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "confirmed")
     
-    # Уведомляем маляра
+    # Уведомляем пользователя (маляра или пескоструйщика)
     try:
+        profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
         await callback.bot.send_message(
             chat_id=order["tg_id"],
             text=f"✅ <b>Заказ подтвержден!</b>\n\n"
@@ -55,8 +56,9 @@ async def admin_confirm_order(callback: CallbackQuery):
                  f"Спасибо за работу!",
             parse_mode="HTML"
         )
+        logging.info(f"✅ УВЕДОМЛЕНИЕ ОТПРАВЛЕНО | {profession_text} | ID: {order['tg_id']} | №{order['order_number']} | {order['price']}₽")
     except Exception as e:
-        logging.error(f"Ошибка отправки уведомления маляру: {e}")
+        logging.error(f"Ошибка отправки уведомления пользователю: {e}")
     
     # Обновляем сообщение админу
     await callback.message.edit_caption(
@@ -91,8 +93,9 @@ async def admin_reject_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "rejected")
     
-    # Уведомляем маляра
+    # Уведомляем пользователя (маляра или пескоструйщика)
     try:
+        profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
         await callback.bot.send_message(
             chat_id=order["tg_id"],
             text=f"❌ <b>Заказ отклонен</b>\n\n"
@@ -100,8 +103,9 @@ async def admin_reject_order(callback: CallbackQuery):
                  f"Обратитесь к администратору для уточнения деталей.",
             parse_mode="HTML"
         )
+        logging.info(f"❌ УВЕДОМЛЕНИЕ ОБ ОТКЛОНЕНИИ | {profession_text} | ID: {order['tg_id']} | №{order['order_number']}")
     except Exception as e:
-        logging.error(f"Ошибка отправки уведомления маляру: {e}")
+        logging.error(f"Ошибка отправки уведомления об отклонении: {e}")
     
     # Обновляем сообщение админу
     await callback.message.edit_caption(
@@ -133,8 +137,9 @@ async def admin_edit_order(callback: CallbackQuery):
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
     
-    # Уведомляем маляра о необходимости исправления
+    # Уведомляем пользователя о необходимости исправления
     try:
+        profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
         await callback.bot.send_message(
             chat_id=order["tg_id"],
             text=f"✏️ <b>Заказ требует исправления</b>\n\n"
@@ -143,8 +148,9 @@ async def admin_edit_order(callback: CallbackQuery):
                  f"Для создания нового заказа отправьте фото диска(ов).",
             parse_mode="HTML"
         )
+        logging.info(f"✏️ УВЕДОМЛЕНИЕ О РЕДАКТИРОВАНИИ | {profession_text} | ID: {order['tg_id']} | №{order['order_number']}")
     except Exception as e:
-        logging.error(f"Ошибка отправки уведомления маляру: {e}")
+        logging.error(f"Ошибка отправки уведомления о редактировании: {e}")
     
     await callback.answer("✏️ Маляр уведомлен о необходимости исправления")
 
