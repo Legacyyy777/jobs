@@ -695,6 +695,10 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
         return
     
     try:
+        # Определяем статус в зависимости от профессии
+        profession = data.get("profession", "painter")
+        status = "confirmed" if profession == "sandblaster" else "draft"
+        
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
@@ -706,7 +710,8 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
             suspensia_type=data.get("suspensia_type"),
             quantity=data.get("quantity", 1),
             spraying_deep=data.get("spraying_deep", 0),
-            spraying_shallow=data.get("spraying_shallow", 0)
+            spraying_shallow=data.get("spraying_shallow", 0),
+            status=status
         )
         
         # Красивое логирование создания заказа
@@ -838,6 +843,10 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
         return
     
     try:
+        # Определяем статус в зависимости от профессии
+        profession = data.get("profession", "painter")
+        status = "confirmed" if profession == "sandblaster" else "draft"
+        
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
@@ -849,7 +858,8 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
             suspensia_type=data.get("suspensia_type"),
             quantity=data.get("quantity", 1),
             spraying_deep=data.get("spraying_deep", 0),
-            spraying_shallow=data.get("spraying_shallow", 0)
+            spraying_shallow=data.get("spraying_shallow", 0),
+            status=status
         )
         
         # Красивое логирование создания заказа
@@ -988,14 +998,24 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 text += f"\n💨 <b>Напыление:</b> {', '.join(spraying_info)}"
     
     try:
-        from keyboards import get_admin_order_keyboard
-        await bot.send_photo(
-            chat_id=config.MODERATION_CHAT_ID,
-            photo=order_data["photo_file_id"],
-            caption=text,
-            parse_mode="HTML",
-            reply_markup=get_admin_order_keyboard(order_number)
-        )
+        # Для пескоструйщика не показываем кнопки (заказ уже подтвержден)
+        if profession == "sandblaster":
+            await bot.send_photo(
+                chat_id=config.MODERATION_CHAT_ID,
+                photo=order_data["photo_file_id"],
+                caption=text,
+                parse_mode="HTML"
+            )
+        else:
+            # Для маляра показываем кнопки подтверждения
+            from keyboards import get_admin_order_keyboard
+            await bot.send_photo(
+                chat_id=config.MODERATION_CHAT_ID,
+                photo=order_data["photo_file_id"],
+                caption=text,
+                parse_mode="HTML",
+                reply_markup=get_admin_order_keyboard(order_number)
+            )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
 

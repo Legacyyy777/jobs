@@ -164,13 +164,13 @@ class Database:
     async def create_order(self, order_number: str, user_id: int, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 
                           photo_file_id: str = None, suspensia_type: str = None, quantity: int = 1,
-                          spraying_deep: int = 0, spraying_shallow: int = 0) -> int:
+                          spraying_deep: int = 0, spraying_shallow: int = 0, status: str = 'draft') -> int:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
-            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
+                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status)
             return order_id
 
     async def update_order_status(self, order_id: int, status: str):
