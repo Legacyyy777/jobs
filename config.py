@@ -49,8 +49,8 @@ class Config:
     
     # Цены за новые типы заказов
     PRICE_NAKIDKA = int(os.getenv('PRICE_NAKIDKA', 300))  # Покраска насадок
-    PRICE_SUSPENSIA_PAINT = int(os.getenv('PRICE_SUSPENSIA_PAINT', 350))  # Суспорт покраска
-    PRICE_SUSPENSIA_LOGO = int(os.getenv('PRICE_SUSPENSIA_LOGO', 750))  # Суспорт с логотипом
+    PRICE_SUSPENSIA_PAINT = int(os.getenv('PRICE_SUSPENSIA_PAINT', 500))  # Супорт покраска
+    PRICE_SUSPENSIA_LOGO = int(os.getenv('PRICE_SUSPENSIA_LOGO', 750))  # Супорт с логотипом
     
     # Настройки базы данных
     DB_HOST = os.getenv('DB_HOST', 'db')

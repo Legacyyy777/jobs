@@ -18,7 +18,7 @@ def get_set_type_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(text="🔹 Один диск", callback_data="set_type_single"))
     builder.add(InlineKeyboardButton(text="🔹 Комплект", callback_data="set_type_set"))
     builder.add(InlineKeyboardButton(text="🔸 Насадки", callback_data="set_type_nakidka"))
-    builder.add(InlineKeyboardButton(text="🔸 Суспорты", callback_data="set_type_suspensia"))
+    builder.add(InlineKeyboardButton(text="🔸 Супорта", callback_data="set_type_suspensia"))
     builder.adjust(2)
     return builder.as_markup()
 
@@ -138,9 +138,9 @@ def get_confirm_delete_keyboard(order_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 def get_suspensia_type_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура для выбора типа суспортов"""
+    """Клавиатура для выбора типа супортов"""
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="🎨 Покраска (350₽)", callback_data="suspensia_type_paint"))
+    builder.add(InlineKeyboardButton(text="🎨 Покраска (500₽)", callback_data="suspensia_type_paint"))
     builder.add(InlineKeyboardButton(text="🏷️ С логотипом (750₽)", callback_data="suspensia_type_logo"))
     builder.adjust(1)
     return builder.as_markup()

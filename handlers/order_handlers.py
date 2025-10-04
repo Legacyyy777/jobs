@@ -315,8 +315,8 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
         return
         
     elif set_type == "suspensia":
-        # Для суспортов выбираем тип (покраска или с логотипом)
-        text = "🔸 <b>Суспорты</b>\n\nВыберите тип:"
+        # Для супортов выбираем тип (покраска или с логотипом)
+        text = "🔸 <b>Супорта</b>\n\nВыберите тип:"
         keyboard = get_suspensia_type_keyboard()
         
         await safe_edit_message(callback, text, keyboard)
@@ -354,12 +354,12 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("suspensia_type_"), StateFilter(OrderStates.waiting_for_suspensia_type))
 async def process_suspensia_type(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора типа суспортов"""
+    """Обработка выбора типа супортов"""
     suspensia_type = callback.data.split("_")[2]  # paint или logo
     
     await state.update_data(suspensia_type=suspensia_type)
     
-    text = "🔸 <b>Суспорты</b>\n\nВведите количество штук:"
+    text = "🔸 <b>Супорта</b>\n\nВведите количество штук:"
     keyboard = get_cancel_keyboard()
     
     await safe_edit_message(callback, text, keyboard)
@@ -368,7 +368,7 @@ async def process_suspensia_type(callback: CallbackQuery, state: FSMContext):
 
 @router.message(StateFilter(OrderStates.waiting_for_suspensia_quantity))
 async def process_suspensia_quantity(message: Message, state: FSMContext):
-    """Обработка количества суспортов"""
+    """Обработка количества супортов"""
     try:
         quantity = int(message.text.strip())
         
@@ -481,11 +481,11 @@ def get_set_type_text(set_type: str, data: dict) -> str:
         suspensia_type = data.get("suspensia_type")
         quantity = data.get("quantity", 1)
         if suspensia_type == "paint":
-            return f"суспорты покраска ({quantity} шт.)"
+            return f"супорта покраска ({quantity} шт.)"
         elif suspensia_type == "logo":
-            return f"суспорты с логотипом ({quantity} шт.)"
+            return f"супорта с логотипом ({quantity} шт.)"
         else:
-            return f"суспорты ({quantity} шт.)"
+            return f"супорта ({quantity} шт.)"
     else:
         return set_type
 
