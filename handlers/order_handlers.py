@@ -733,7 +733,7 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
             "price": data["price"],
             "photo_file_id": data["photo_file_id"]
         }
-        await send_admin_notification(message.bot, data["order_number"], order_data, message.from_user.username or message.from_user.full_name)
+        await send_admin_notification(message.bot, data["order_number"], order_data, message.from_user.username or message.from_user.full_name, order_id)
         
         # Формируем текст подтверждения
         set_type_text = get_set_type_text(data["set_type"], data)
@@ -888,7 +888,7 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
             "price": data["price"],
             "photo_file_id": data["photo_file_id"]
         }
-        await send_admin_notification(callback.bot, data["order_number"], order_data, callback.from_user.username or callback.from_user.full_name)
+        await send_admin_notification(callback.bot, data["order_number"], order_data, callback.from_user.username or callback.from_user.full_name, order_id)
         
         # Формируем текст подтверждения
         set_type_text = get_set_type_text(data["set_type"], data)
@@ -978,7 +978,7 @@ async def process_cancel(callback: CallbackQuery, state: FSMContext):
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
-async def send_admin_notification(bot, order_number: str, order_data: dict, username: str):
+async def send_admin_notification(bot, order_number: str, order_data: dict, username: str, order_id: int = None):
     """Отправляет уведомление в чат модерации о новом заказе"""
     if not config.MODERATION_CHAT_ID:
         logging.warning("MODERATION_CHAT_ID не настроен, уведомление не отправлено")
@@ -1057,7 +1057,7 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 photo=order_data["photo_file_id"],
                 caption=text,
                 parse_mode="HTML",
-                reply_markup=get_admin_order_keyboard(order_number)
+                reply_markup=get_admin_order_keyboard(order_number, order_id)
             )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")

@@ -287,6 +287,17 @@ class Database:
                 WHERE o.order_number = $1 AND u.profession = $2
             """, order_number, profession)
             return dict(order) if order else None
+    
+    async def get_order_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:
+        """Получает заказ по ID"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT o.*, u.tg_id, u.name as user_name, u.profession
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.id = $1
+            """, order_id)
+            return dict(order) if order else None
 
     async def update_order_price(self, order_id: int, new_price: int) -> bool:
         """Обновляет цену заказа"""

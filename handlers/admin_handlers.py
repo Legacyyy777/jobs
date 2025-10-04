@@ -34,10 +34,17 @@ async def admin_confirm_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
+    # Проверяем формат callback_data
+    parts = callback.data.split("_")
+    if len(parts) >= 4 and parts[2] == "id":
+        # Новый формат с ID заказа
+        order_id = int(parts[3])
+        order = await db.get_order_by_id(order_id)
+    else:
+        # Старый формат с номером заказа (обратная совместимость)
+        order_number = callback.data.split("_", 2)[2]
+        order = await db.get_order_by_number(order_number)
     
-    # Получаем данные заказа по номеру
-    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
@@ -82,10 +89,17 @@ async def admin_reject_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
+    # Проверяем формат callback_data
+    parts = callback.data.split("_")
+    if len(parts) >= 4 and parts[2] == "id":
+        # Новый формат с ID заказа
+        order_id = int(parts[3])
+        order = await db.get_order_by_id(order_id)
+    else:
+        # Старый формат с номером заказа (обратная совместимость)
+        order_number = callback.data.split("_", 2)[2]
+        order = await db.get_order_by_number(order_number)
     
-    # Получаем данные заказа по номеру
-    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return
@@ -129,10 +143,17 @@ async def admin_edit_order(callback: CallbackQuery):
         await callback.answer("❌ У вас нет прав для модерации заказов", show_alert=True)
         return
     
-    order_number = callback.data.split("_", 2)[2]  # Получаем номер заказа
+    # Проверяем формат callback_data
+    parts = callback.data.split("_")
+    if len(parts) >= 4 and parts[2] == "id":
+        # Новый формат с ID заказа
+        order_id = int(parts[3])
+        order = await db.get_order_by_id(order_id)
+    else:
+        # Старый формат с номером заказа (обратная совместимость)
+        order_number = callback.data.split("_", 2)[2]
+        order = await db.get_order_by_number(order_number)
     
-    # Получаем данные заказа по номеру
-    order = await db.get_order_by_number(order_number)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
         return

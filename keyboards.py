@@ -42,12 +42,19 @@ def get_alumochrome_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(2)
     return builder.as_markup()
 
-def get_admin_order_keyboard(order_number: str) -> InlineKeyboardMarkup:
+def get_admin_order_keyboard(order_number: str, order_id: int = None) -> InlineKeyboardMarkup:
     """Клавиатура для админа для управления заказом"""
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"admin_confirm_{order_number}"))
-    builder.add(InlineKeyboardButton(text="✏️ Исправить", callback_data=f"admin_edit_{order_number}"))
-    builder.add(InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_reject_{order_number}"))
+    if order_id:
+        # Используем ID заказа для точной идентификации
+        builder.add(InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"admin_confirm_id_{order_id}"))
+        builder.add(InlineKeyboardButton(text="✏️ Исправить", callback_data=f"admin_edit_id_{order_id}"))
+        builder.add(InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_reject_id_{order_id}"))
+    else:
+        # Обратная совместимость - используем номер заказа
+        builder.add(InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"admin_confirm_{order_number}"))
+        builder.add(InlineKeyboardButton(text="✏️ Исправить", callback_data=f"admin_edit_{order_number}"))
+        builder.add(InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_reject_{order_number}"))
     builder.adjust(1)
     return builder.as_markup()
 
