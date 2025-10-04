@@ -10,15 +10,26 @@ class Database:
 
     async def create_pool(self):
         """Создает пул соединений с базой данных"""
-        self.pool = await asyncpg.create_pool(
-            host=config.DB_HOST,
-            port=config.DB_PORT,
-            database=config.DB_NAME,
-            user=config.DB_USER,
-            password=config.DB_PASSWORD,
-            min_size=1,
-            max_size=10
-        )
+        try:
+            self.pool = await asyncpg.create_pool(
+                host=config.DB_HOST,
+                port=config.DB_PORT,
+                database=config.DB_NAME,
+                user=config.DB_USER,
+                password=config.DB_PASSWORD,
+                min_size=1,
+                max_size=10,
+                command_timeout=30,
+                server_settings={
+                    'application_name': 'painter_bot',
+                }
+            )
+        except asyncpg.exceptions.InvalidCatalogNameError:
+            raise Exception(f"База данных '{config.DB_NAME}' не существует. Проверьте настройки подключения.")
+        except asyncpg.exceptions.ConnectionDoesNotExistError:
+            raise Exception(f"Не удается подключиться к серверу базы данных {config.DB_HOST}:{config.DB_PORT}")
+        except Exception as e:
+            raise Exception(f"Ошибка подключения к базе данных: {e}")
 
     async def close_pool(self):
         """Закрывает пул соединений"""
