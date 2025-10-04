@@ -592,7 +592,7 @@ async def process_deep_spraying(message: Message, state: FSMContext):
         text = "💨 <b>Напыление</b>\n\nСколько было <b>неглубоких</b> напылений?\n(Введите 0, если не было)"
         keyboard = get_cancel_keyboard()
         
-        await message.answer(text, reply_markup=keyboard)
+        await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
         await state.set_state(OrderStates.waiting_for_shallow_spraying)
         
     except ValueError:
