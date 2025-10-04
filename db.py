@@ -19,10 +19,18 @@ class Database:
                 password=config.DB_PASSWORD,
                 min_size=1,
                 max_size=10,
-                command_timeout=30,
+                command_timeout=60,  # Увеличиваем таймаут команды
                 server_settings={
                     'application_name': 'painter_bot',
-                }
+                    'jit': 'off',  # Отключаем JIT для стабильности
+                },
+                # Добавляем настройки для стабильности соединения
+                setup=self._setup_connection,
+                init=self._init_connection,
+                # Увеличиваем таймауты
+                timeout=30,
+                max_queries=50000,
+                max_inactive_connection_lifetime=300,  # 5 минут
             )
         except asyncpg.exceptions.InvalidCatalogNameError:
             raise Exception(f"База данных '{config.DB_NAME}' не существует. Проверьте настройки подключения.")
@@ -31,10 +39,62 @@ class Database:
         except Exception as e:
             raise Exception(f"Ошибка подключения к базе данных: {e}")
 
+    async def _setup_connection(self, conn):
+        """Настройка соединения"""
+        # Устанавливаем параметры для стабильности
+        await conn.execute("SET statement_timeout = '60s'")
+        await conn.execute("SET lock_timeout = '30s'")
+        await conn.execute("SET idle_in_transaction_session_timeout = '300s'")
+
+    async def _init_connection(self, conn):
+        """Инициализация соединения"""
+        # Проверяем соединение
+        await conn.fetchval("SELECT 1")
+
     async def close_pool(self):
         """Закрывает пул соединений"""
         if self.pool:
             await self.pool.close()
+
+    async def health_check(self) -> bool:
+        """Проверяет состояние соединения с базой данных"""
+        if not self.pool:
+            return False
+        
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+                return True
+        except Exception as e:
+            print(f"Health check failed: {e}")
+            return False
+
+    async def reconnect(self):
+        """Переподключается к базе данных"""
+        print("Attempting to reconnect to database...")
+        await self.close_pool()
+        await self.create_pool()
+        await self.init_tables()
+        print("Database reconnected successfully")
+
+    async def _execute_with_retry(self, operation, *args, **kwargs):
+        """Выполняет операцию с автоматическим переподключением при ошибке"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                return await operation(*args, **kwargs)
+            except (asyncpg.exceptions.ConnectionDoesNotExistError, 
+                    asyncpg.exceptions.TooManyConnectionsError,
+                    asyncpg.exceptions.ConnectionFailure) as e:
+                if attempt < max_retries - 1:
+                    print(f"Database connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                    await self.reconnect()
+                    await asyncio.sleep(1)  # Небольшая задержка перед повторной попыткой
+                else:
+                    raise e
+            except Exception as e:
+                # Для других типов ошибок не делаем переподключение
+                raise e
 
     async def init_tables(self):
         """Создает таблицы в базе данных"""

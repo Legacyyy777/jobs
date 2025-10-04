@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import signal
+import sys
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -14,8 +16,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+async def health_check_task():
+    """Задача для периодической проверки состояния базы данных"""
+    while True:
+        try:
+            await asyncio.sleep(300)  # Проверяем каждые 5 минут
+            if not await db.health_check():
+                logger.warning("⚠️ База данных недоступна, попытка переподключения...")
+                await db.reconnect()
+        except Exception as e:
+            logger.error(f"❌ Ошибка в health check: {e}")
+
+async def graceful_shutdown(signum, frame):
+    """Обработчик для корректного завершения работы"""
+    logger.info("🛑 Получен сигнал завершения, закрываем соединения...")
+    await db.close_pool()
+    sys.exit(0)
+
 async def main():
     """Основная функция запуска бота"""
+    
+    # Устанавливаем обработчики сигналов для корректного завершения
+    signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(graceful_shutdown(s, f)))
+    signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(graceful_shutdown(s, f)))
     
     # Красивое логирование системной информации
     logger.info("╔══════════════════════════════════════════════════════════════════════════════════╗")
@@ -62,6 +85,9 @@ async def main():
                     logger.error("❌ Не удалось подключиться к базе данных после всех попыток")
                     raise db_error
         
+        # Запускаем задачу мониторинга базы данных
+        health_task = asyncio.create_task(health_check_task())
+        
         # Запускаем бота
         logger.info("🚀 Запуск бота...")
         await dp.start_polling(bot)
@@ -69,6 +95,9 @@ async def main():
     except Exception as e:
         logger.error(f"❌ Критическая ошибка при запуске бота: {e}")
     finally:
+        # Отменяем задачу мониторинга
+        if 'health_task' in locals():
+            health_task.cancel()
         # Закрываем соединения
         logger.info("🔌 Закрытие соединений...")
         await db.close_pool()
