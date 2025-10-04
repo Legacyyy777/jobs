@@ -13,6 +13,7 @@ class Config:
     MODERATION_CHAT_ID = os.getenv('MODERATION_CHAT_ID')  # ID чата/канала для модерации заказов
     
     # Цены за одиночные диски
+    PRICE_SINGLE_R12 = int(os.getenv('PRICE_SINGLE_R12', 150))
     PRICE_SINGLE_R13 = int(os.getenv('PRICE_SINGLE_R13', 200))
     PRICE_SINGLE_R14 = int(os.getenv('PRICE_SINGLE_R14', 300))
     PRICE_SINGLE_R15 = int(os.getenv('PRICE_SINGLE_R15', 300))
@@ -27,6 +28,7 @@ class Config:
     PRICE_SINGLE_R24 = int(os.getenv('PRICE_SINGLE_R24', 1500))
     
     # Цены за комплекты
+    PRICE_SET_R12 = int(os.getenv('PRICE_SET_R12', 600))
     PRICE_SET_R13 = int(os.getenv('PRICE_SET_R13', 700))
     PRICE_SET_R14 = int(os.getenv('PRICE_SET_R14', 700))
     PRICE_SET_R15 = int(os.getenv('PRICE_SET_R15', 800))
