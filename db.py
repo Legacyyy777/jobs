@@ -96,15 +96,8 @@ class Database:
                 except Exception:
                     pass  # Игнорируем ошибку, если ограничение не существует
                 
-                # Добавляем составной уникальный ключ (order_number + профессия пользователя)
-                # Это позволит иметь одинаковые номера заказов для разных профессий
-                try:
-                    await conn.execute("""
-                        CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_number_profession 
-                        ON orders (order_number, (SELECT profession FROM users WHERE users.id = orders.user_id))
-                    """)
-                except Exception:
-                    pass  # Игнорируем ошибку, если индекс уже существует
+                # Уникальность номеров заказов контролируется на уровне приложения
+                # через проверку в check_order_number_exists с учетом профессии
             except Exception as e:
                 # Игнорируем ошибки, если колонки уже существуют
                 pass
