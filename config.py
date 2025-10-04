@@ -99,31 +99,85 @@ class Config:
 
 config = Config()
 
-# Логируем загруженные цены для отладки
-logging.info("=== ЗАГРУЖЕННЫЕ ЦЕНЫ ===")
-logging.info(f"PRICE_SINGLE_R13: {config.PRICE_SINGLE_R13}")
-logging.info(f"PRICE_SINGLE_R14: {config.PRICE_SINGLE_R14}")
-logging.info(f"PRICE_SINGLE_R15: {config.PRICE_SINGLE_R15}")
-logging.info(f"PRICE_SINGLE_R16: {config.PRICE_SINGLE_R16}")
-logging.info(f"PRICE_SINGLE_R17: {config.PRICE_SINGLE_R17}")
-logging.info(f"PRICE_SINGLE_R18: {config.PRICE_SINGLE_R18}")
-logging.info(f"PRICE_SINGLE_R19: {config.PRICE_SINGLE_R19}")
-logging.info(f"PRICE_SINGLE_R20: {config.PRICE_SINGLE_R20}")
-logging.info(f"PRICE_SINGLE_R21: {config.PRICE_SINGLE_R21}")
-logging.info(f"PRICE_SINGLE_R22: {config.PRICE_SINGLE_R22}")
-logging.info(f"PRICE_SINGLE_R23: {config.PRICE_SINGLE_R23}")
-logging.info(f"PRICE_SET_R13: {config.PRICE_SET_R13}")
-logging.info(f"PRICE_SET_R14: {config.PRICE_SET_R14}")
-logging.info(f"PRICE_SET_R15: {config.PRICE_SET_R15}")
-logging.info(f"PRICE_SET_R16: {config.PRICE_SET_R16}")
-logging.info(f"PRICE_SET_R17: {config.PRICE_SET_R17}")
-logging.info(f"PRICE_SET_R18: {config.PRICE_SET_R18}")
-logging.info(f"PRICE_SET_R19: {config.PRICE_SET_R19}")
-logging.info(f"PRICE_SET_R20: {config.PRICE_SET_R20}")
-logging.info(f"PRICE_SET_R21: {config.PRICE_SET_R21}")
-logging.info(f"PRICE_SET_R22: {config.PRICE_SET_R22}")
-logging.info(f"PRICE_SET_R23: {config.PRICE_SET_R23}")
-logging.info(f"PRICE_PREP_SINGLE: {config.PRICE_PREP_SINGLE}")
-logging.info(f"PRICE_PREP_SET: {config.PRICE_PREP_SET}")
-logging.info(f"PRICE_ALUMOCHROME_EXTRA: {config.PRICE_ALUMOCHROME_EXTRA}")
-logging.info("========================")
+# Красивое логирование цен
+def log_prices():
+    logging.info("╔══════════════════════════════════════════════════════════════════════════════════╗")
+    logging.info("║                                 💰 ЗАГРУЖЕННЫЕ ЦЕНЫ 💰                           ║")
+    logging.info("╠══════════════════════════════════════════════════════════════════════════════════╣")
+    
+    # Цены для маляра - одиночные диски
+    logging.info("║ 🎨 МАЛЯР - ОДИНОЧНЫЕ ДИСКИ:                                                      ║")
+    prices_single = [
+        ("R12", config.PRICE_SINGLE_R12), ("R13", config.PRICE_SINGLE_R13), ("R14", config.PRICE_SINGLE_R14),
+        ("R15", config.PRICE_SINGLE_R15), ("R16", config.PRICE_SINGLE_R16), ("R17", config.PRICE_SINGLE_R17),
+        ("R18", config.PRICE_SINGLE_R18), ("R19", config.PRICE_SINGLE_R19), ("R20", config.PRICE_SINGLE_R20),
+        ("R21", config.PRICE_SINGLE_R21), ("R22", config.PRICE_SINGLE_R22), ("R23", config.PRICE_SINGLE_R23),
+        ("R24", config.PRICE_SINGLE_R24)
+    ]
+    
+    for size, price in prices_single:
+        logging.info(f"║   {size}: {price:>4}₽                                                                  ║")
+    
+    # Цены для маляра - комплекты
+    logging.info("║ 🎨 МАЛЯР - КОМПЛЕКТЫ:                                                           ║")
+    prices_set = [
+        ("R12", config.PRICE_SET_R12), ("R13", config.PRICE_SET_R13), ("R14", config.PRICE_SET_R14),
+        ("R15", config.PRICE_SET_R15), ("R16", config.PRICE_SET_R16), ("R17", config.PRICE_SET_R17),
+        ("R18", config.PRICE_SET_R18), ("R19", config.PRICE_SET_R19), ("R20", config.PRICE_SET_R20),
+        ("R21", config.PRICE_SET_R21), ("R22", config.PRICE_SET_R22), ("R23", config.PRICE_SET_R23),
+        ("R24", config.PRICE_SET_R24)
+    ]
+    
+    for size, price in prices_set:
+        logging.info(f"║   {size}: {price:>4}₽                                                                  ║")
+    
+    # Цены для пескоструйщика - одиночные диски
+    logging.info("║ 💨 ПЕСКОСТРУЙЩИК - ОДИНОЧНЫЕ ДИСКИ:                                              ║")
+    sandblaster_single = [
+        ("R12", config.PRICE_SANDBLASTER_SINGLE_R12), ("R13", config.PRICE_SANDBLASTER_SINGLE_R13),
+        ("R14", config.PRICE_SANDBLASTER_SINGLE_R14), ("R15", config.PRICE_SANDBLASTER_SINGLE_R15),
+        ("R16", config.PRICE_SANDBLASTER_SINGLE_R16), ("R17", config.PRICE_SANDBLASTER_SINGLE_R17),
+        ("R18", config.PRICE_SANDBLASTER_SINGLE_R18), ("R19", config.PRICE_SANDBLASTER_SINGLE_R19),
+        ("R20", config.PRICE_SANDBLASTER_SINGLE_R20), ("R21", config.PRICE_SANDBLASTER_SINGLE_R21),
+        ("R22", config.PRICE_SANDBLASTER_SINGLE_R22), ("R23", config.PRICE_SANDBLASTER_SINGLE_R23),
+        ("R24", config.PRICE_SANDBLASTER_SINGLE_R24)
+    ]
+    
+    for size, price in sandblaster_single:
+        logging.info(f"║   {size}: {price:>4}₽                                                                  ║")
+    
+    # Цены для пескоструйщика - комплекты
+    logging.info("║ 💨 ПЕСКОСТРУЙЩИК - КОМПЛЕКТЫ:                                                    ║")
+    sandblaster_set = [
+        ("R12", config.PRICE_SANDBLASTER_SET_R12), ("R13", config.PRICE_SANDBLASTER_SET_R13),
+        ("R14", config.PRICE_SANDBLASTER_SET_R14), ("R15", config.PRICE_SANDBLASTER_SET_R15),
+        ("R16", config.PRICE_SANDBLASTER_SET_R16), ("R17", config.PRICE_SANDBLASTER_SET_R17),
+        ("R18", config.PRICE_SANDBLASTER_SET_R18), ("R19", config.PRICE_SANDBLASTER_SET_R19),
+        ("R20", config.PRICE_SANDBLASTER_SET_R20), ("R21", config.PRICE_SANDBLASTER_SET_R21),
+        ("R22", config.PRICE_SANDBLASTER_SET_R22), ("R23", config.PRICE_SANDBLASTER_SET_R23),
+        ("R24", config.PRICE_SANDBLASTER_SET_R24)
+    ]
+    
+    for size, price in sandblaster_set:
+        logging.info(f"║   {size}: {price:>4}₽                                                                  ║")
+    
+    # Дополнительные услуги
+    logging.info("║ 🔧 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:                                                         ║")
+    logging.info(f"║   Подготовка одиночного диска: {config.PRICE_PREP_SINGLE:>4}₽                                       ║")
+    logging.info(f"║   Подготовка комплекта: {config.PRICE_PREP_SET:>4}₽                                           ║")
+    logging.info(f"║   Доплата за алюмохром: {config.PRICE_ALUMOCHROME_EXTRA:>4}₽                                        ║")
+    
+    # Цены для специальных услуг
+    logging.info("║ 🎯 СПЕЦИАЛЬНЫЕ УСЛУГИ:                                                          ║")
+    logging.info(f"║   Насадки (маляр): {config.PRICE_NAKIDKA:>4}₽                                                ║")
+    logging.info(f"║   Супорта покраска (маляр): {config.PRICE_SUSPENSIA_PAINT:>4}₽                                  ║")
+    logging.info(f"║   Супорта с логотипом (маляр): {config.PRICE_SUSPENSIA_LOGO:>4}₽                               ║")
+    logging.info(f"║   Насадки (пескоструйщик): {config.PRICE_SANDBLASTER_NAKIDKA:>4}₽                              ║")
+    logging.info(f"║   Супорта (пескоструйщик): {config.PRICE_SANDBLASTER_SUSPENSIA:>4}₽                            ║")
+    logging.info(f"║   Глубокое напыление: {config.PRICE_SPRAYING_DEEP:>4}₽                                         ║")
+    logging.info(f"║   Неглубокое напыление: {config.PRICE_SPRAYING_SHALLOW:>4}₽                                    ║")
+    
+    logging.info("╚══════════════════════════════════════════════════════════════════════════════════╝")
+
+# Вызываем функцию логирования
+log_prices()

@@ -55,19 +55,21 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
     base_price = 0
     
     # Логируем для отладки
-    logging.info(f"Расчет цены: profession={profession}, set_type={set_type}, size={size}, alumochrome={alumochrome}, suspensia_type={suspensia_type}, quantity={quantity}, spraying_deep={spraying_deep}, spraying_shallow={spraying_shallow}")
+    profession_emoji = "🎨" if profession == "painter" else "💨"
+    profession_name = "Маляр" if profession == "painter" else "Пескоструйщик"
+    logging.info(f"💰 Расчет цены | {profession_emoji} {profession_name} | Тип: {set_type} | Размер: {size or 'Н/Д'} | Цена: {alumochrome and '+Алюмохром' or ''} {suspensia_type and f'({suspensia_type})' or ''} {quantity > 1 and f'×{quantity}' or ''} {spraying_deep > 0 and f'Глубоких:{spraying_deep}' or ''} {spraying_shallow > 0 and f'Неглубоких:{spraying_shallow}' or ''}")
     
     if profession == "sandblaster":
         # Логика для пескоструйщика
         if set_type == "nakidka":
             base_price = config.PRICE_SANDBLASTER_NAKIDKA
-            logging.info(f"Цена за насадки (пескоструйщик): {base_price} руб.")
+            logging.info(f"💰 Цена за насадки (пескоструйщик): {base_price}₽")
             return base_price
         
         elif set_type == "suspensia":
             base_price = config.PRICE_SANDBLASTER_SUSPENSIA
             total_price = base_price * quantity
-            logging.info(f"Цена за супорта (пескоструйщик): {base_price} руб. × {quantity} шт. = {total_price} руб.")
+            logging.info(f"💰 Цена за супорта (пескоструйщик): {base_price}₽ × {quantity} шт. = {total_price}₽")
             return total_price
         
         elif set_type == "single":
@@ -112,14 +114,14 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
         spraying_price = (spraying_deep * config.PRICE_SPRAYING_DEEP) + (spraying_shallow * config.PRICE_SPRAYING_SHALLOW)
         total_price = base_price + spraying_price
         
-        logging.info(f"Цена за {set_type} {size} (пескоструйщик): {base_price} руб. + напыление: {spraying_price} руб. = {total_price} руб.")
+        logging.info(f"💰 Цена за {set_type} {size} (пескоструйщик): {base_price}₽ + напыление: {spraying_price}₽ = {total_price}₽")
         return total_price
     
     else:
         # Логика для маляра (существующая)
         if set_type == "nakidka":
             base_price = config.PRICE_NAKIDKA
-            logging.info(f"Цена за насадки (маляр): {base_price} руб.")
+            logging.info(f"💰 Цена за насадки (маляр): {base_price}₽")
             return base_price
         
         elif set_type == "suspensia":
@@ -129,7 +131,7 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
                 base_price = config.PRICE_SUSPENSIA_LOGO
             
             total_price = base_price * quantity
-            logging.info(f"Цена за супорта (маляр): {base_price} руб. × {quantity} шт. = {total_price} руб.")
+            logging.info(f"💰 Цена за супорта (маляр): {base_price}₽ × {quantity} шт. = {total_price}₽")
             return total_price
     
         # Обработка дисков для маляра
@@ -199,7 +201,7 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
         if alumochrome and set_type in ["single", "set"]:
             base_price += config.PRICE_ALUMOCHROME_EXTRA
     
-    logging.info(f"Итоговая цена: {base_price} руб.")
+    logging.info(f"💰 Итоговая цена: {base_price}₽")
     return base_price
 
 @router.message(Command("start"))
@@ -213,7 +215,9 @@ async def cmd_start(message: Message, state: FSMContext):
     
     # Проверяем, есть ли уже профессия у пользователя
     user_profession = await db.get_user_profession(message.from_user.id)
-    logging.info(f"User {message.from_user.id} profession: {user_profession}")
+    profession_emoji = "🎨" if user_profession == "painter" else "💨" if user_profession else "❓"
+    profession_name = "Маляр" if user_profession == "painter" else "Пескоструйщик" if user_profession == "sandblaster" else "Неопределена"
+    logging.info(f"👤 Пользователь {message.from_user.id} | Профессия: {profession_emoji} {profession_name}")
     
     if user_profession is not None:
         # Пользователь уже выбрал профессию, показываем главное меню
@@ -506,7 +510,7 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора размера диска"""
     size = callback.data.split("_")[1]  # R15, R16, etc.
     
-    logging.info(f"Выбран размер диска: {size}")
+    logging.info(f"📏 Выбран размер диска: {size}")
     
     await state.update_data(size=size)
     
@@ -704,6 +708,11 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
             spraying_shallow=data.get("spraying_shallow", 0)
         )
         
+        # Красивое логирование создания заказа
+        profession_emoji = "🎨" if data.get("profession") == "painter" else "💨"
+        profession_name = "Маляр" if data.get("profession") == "painter" else "Пескоструйщик"
+        logging.info(f"✅ ЗАКАЗ СОЗДАН | ID: {order_id} | №{data['order_number']} | {profession_emoji} {profession_name} | {data['set_type']} {data.get('size', '')} | {data['price']}₽")
+        
         # Отправляем уведомление в чат модерации
         order_data = {
             "order_number": data["order_number"],
@@ -838,6 +847,11 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
             spraying_deep=data.get("spraying_deep", 0),
             spraying_shallow=data.get("spraying_shallow", 0)
         )
+        
+        # Красивое логирование создания заказа
+        profession_emoji = "🎨" if data.get("profession") == "painter" else "💨"
+        profession_name = "Маляр" if data.get("profession") == "painter" else "Пескоструйщик"
+        logging.info(f"✅ ЗАКАЗ СОЗДАН | ID: {order_id} | №{data['order_number']} | {profession_emoji} {profession_name} | {data['set_type']} {data.get('size', '')} | {data['price']}₽")
         
         # Отправляем уведомление в чат модерации
         order_data = {
