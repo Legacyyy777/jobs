@@ -129,9 +129,13 @@ class Database:
             return False
         
         try:
-            async with self.pool.acquire() as conn:
+            # Получаем соединение и сразу освобождаем
+            conn = await self.pool.acquire()
+            try:
                 await conn.fetchval("SELECT 1")
                 return True
+            finally:
+                await self.pool.release(conn)
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
@@ -170,74 +174,80 @@ class Database:
     async def init_tables(self):
         """Создает таблицы в базе данных"""
         try:
-            async with self.pool.acquire() as conn:
+            # Получаем соединение и держим его до конца
+            conn = await self.pool.acquire()
+            try:
                 # Таблица пользователей
                 await conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    tg_id BIGINT UNIQUE NOT NULL,
-                    name VARCHAR(255) NOT NULL,
-                    profession VARCHAR(20) DEFAULT 'painter', -- 'painter' или 'sandblaster'
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # Таблица заказов (универсальная для всех профессий)
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS orders (
-                    id SERIAL PRIMARY KEY,
-                    order_number VARCHAR(50) NOT NULL,
-                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                    set_type VARCHAR(20) NOT NULL, -- 'single', 'set', 'nakidka', 'suspensia'
-                    size VARCHAR(10), -- 'R15', 'R16', 'R17' (NULL для насадок и суспортов)
-                    alumochrome BOOLEAN DEFAULT FALSE,
-                    suspensia_type VARCHAR(20), -- 'paint' или 'logo' (только для суспортов)
-                    quantity INTEGER DEFAULT 1, -- количество суспортов
-                    spraying_deep INTEGER DEFAULT 0, -- количество глубоких напылений
-                    spraying_shallow INTEGER DEFAULT 0, -- количество неглубоких напылений
-                    price INTEGER NOT NULL,
-                    status VARCHAR(20) DEFAULT 'draft', -- 'draft', 'confirmed', 'rejected'
-                    photo_file_id VARCHAR(255),
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # Миграция для добавления новых полей
-            try:
-                # Миграция для таблицы пользователей
-                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
-                await conn.execute("UPDATE users SET profession = 'painter' WHERE profession IS NULL")
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        tg_id BIGINT UNIQUE NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        profession VARCHAR(20) DEFAULT 'painter', -- 'painter' или 'sandblaster'
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 
-                # Миграция для таблицы заказов
-                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
-                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1")
-                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_deep INTEGER DEFAULT 0")
-                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_shallow INTEGER DEFAULT 0")
-                await conn.execute("ALTER TABLE orders ALTER COLUMN size DROP NOT NULL")
+                # Таблица заказов (универсальная для всех профессий)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS orders (
+                        id SERIAL PRIMARY KEY,
+                        order_number VARCHAR(50) NOT NULL,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        set_type VARCHAR(20) NOT NULL, -- 'single', 'set', 'nakidka', 'suspensia'
+                        size VARCHAR(10), -- 'R15', 'R16', 'R17' (NULL для насадок и суспортов)
+                        alumochrome BOOLEAN DEFAULT FALSE,
+                        suspensia_type VARCHAR(20), -- 'paint' или 'logo' (только для суспортов)
+                        quantity INTEGER DEFAULT 1, -- количество суспортов
+                        spraying_deep INTEGER DEFAULT 0, -- количество глубоких напылений
+                        spraying_shallow INTEGER DEFAULT 0, -- количество неглубоких напылений
+                        price INTEGER NOT NULL,
+                        status VARCHAR(20) DEFAULT 'draft', -- 'draft', 'confirmed', 'rejected'
+                        photo_file_id VARCHAR(255),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 
-                # Удаляем поле profession из таблицы orders, если оно существует
+                # Миграция для добавления новых полей
                 try:
-                    await conn.execute("ALTER TABLE orders DROP COLUMN IF EXISTS profession")
-                except Exception:
-                    pass  # Игнорируем ошибку, если колонка не существует
+                    # Миграция для таблицы пользователей
+                    await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
+                    await conn.execute("UPDATE users SET profession = 'painter' WHERE profession IS NULL")
+                    
+                    # Миграция для таблицы заказов
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1")
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_deep INTEGER DEFAULT 0")
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_shallow INTEGER DEFAULT 0")
+                    await conn.execute("ALTER TABLE orders ALTER COLUMN size DROP NOT NULL")
+                    
+                    # Удаляем поле profession из таблицы orders, если оно существует
+                    try:
+                        await conn.execute("ALTER TABLE orders DROP COLUMN IF EXISTS profession")
+                    except Exception:
+                        pass  # Игнорируем ошибку, если колонка не существует
+                    
+                    # Удаляем старое ограничение уникальности на order_number, если оно существует
+                    try:
+                        await conn.execute("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_order_number_key")
+                    except Exception:
+                        pass  # Игнорируем ошибку, если ограничение не существует
+                    
+                    # Уникальность номеров заказов контролируется на уровне приложения
+                    # через проверку в check_order_number_exists с учетом профессии
+                except Exception as e:
+                    # Игнорируем ошибки, если колонки уже существуют
+                    pass
                 
-                # Удаляем старое ограничение уникальности на order_number, если оно существует
-                try:
-                    await conn.execute("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_order_number_key")
-                except Exception:
-                    pass  # Игнорируем ошибку, если ограничение не существует
-                
-                # Уникальность номеров заказов контролируется на уровне приложения
-                # через проверку в check_order_number_exists с учетом профессии
-            except Exception as e:
-                # Игнорируем ошибки, если колонки уже существуют
-                pass
-            
                 # Индексы для оптимизации
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)")
+                
+            finally:
+                # Освобождаем соединение
+                await self.pool.release(conn)
                 
         except Exception as e:
             logger.error(f"Ошибка инициализации таблиц: {e}")

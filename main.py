@@ -28,8 +28,13 @@ async def health_check_task():
                 logger.warning("⚠️ База данных недоступна, попытка переподключения...")
                 try:
                     await db.reconnect()
-                    set_database_available(True)
-                    logger.info("✅ База данных восстановлена")
+                    # Дополнительная проверка после переподключения
+                    if await db.health_check():
+                        set_database_available(True)
+                        logger.info("✅ База данных восстановлена")
+                    else:
+                        set_database_available(False)
+                        logger.warning("⚠️ Переподключение выполнено, но health check не прошел")
                 except Exception as reconnect_error:
                     logger.error(f"❌ Не удалось переподключиться к БД: {reconnect_error}")
                     set_database_available(False)
@@ -100,9 +105,13 @@ async def main():
             try:
                 await db.create_pool()
                 await db.init_tables()
-                set_database_available(True)
-                logger.info("✅ База данных успешно инициализирована")
-                break
+                # Дополнительная проверка после инициализации
+                if await db.health_check():
+                    set_database_available(True)
+                    logger.info("✅ База данных успешно инициализирована")
+                    break
+                else:
+                    raise Exception("Health check не прошел после инициализации")
             except Exception as db_error:
                 logger.warning(f"⚠️  Попытка {attempt + 1}/{max_retries} подключения к БД неудачна: {db_error}")
                 
