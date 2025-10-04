@@ -1,6 +1,7 @@
 import logging
+import re
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery, PhotoSize
+from aiogram.types import Message, CallbackQuery, PhotoSize, InlineKeyboardMarkup
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
@@ -20,6 +21,30 @@ from config import config
 from db import db
 
 router = Router()
+
+async def safe_edit_message(callback: CallbackQuery, text: str, keyboard: InlineKeyboardMarkup = None, parse_mode: str = "HTML"):
+    """Безопасное редактирование сообщения с проверкой на изменение содержимого"""
+    # Проверяем, отличается ли новый текст от текущего
+    current_text = callback.message.text or ""
+    current_markup = callback.message.reply_markup
+    
+    # Сравниваем тексты (убираем HTML теги для сравнения)
+    current_text_clean = re.sub(r'<[^>]+>', '', current_text).strip()
+    new_text_clean = re.sub(r'<[^>]+>', '', text).strip()
+    
+    # Если текст или клавиатура отличаются, редактируем сообщение
+    if current_text_clean != new_text_clean or current_markup != keyboard:
+        try:
+            await callback.message.edit_text(
+                text,
+                parse_mode=parse_mode,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            # Если не удалось отредактировать (например, сообщение не изменилось),
+            # просто отвечаем на callback без ошибки
+            logging.warning(f"Failed to edit message: {e}")
+    # Если содержимое не изменилось, ничего не делаем
 
 def calculate_price(set_type: str, size: str, alumochrome: bool) -> int:
     """Рассчитывает цену заказа"""
@@ -116,25 +141,20 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
     """Показать главное меню"""
     await state.clear()
     
-    await callback.message.edit_text(
-        "🎨 <b>Главное меню</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_main_menu_keyboard()
-    )
+    text = "🎨 <b>Главное меню</b>\n\nВыберите действие:"
+    keyboard = get_main_menu_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 
 @router.callback_query(F.data == "create_order")
 async def start_create_order(callback: CallbackQuery, state: FSMContext):
     """Начать создание заказа"""
-    await callback.message.edit_text(
-        "📸 <b>Создание заказа</b>\n\n"
-        "Отправьте фото диска(ов), который нужно покрасить:",
-        parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
-    )
+    text = "📸 <b>Создание заказа</b>\n\nОтправьте фото диска(ов), который нужно покрасить:"
+    keyboard = get_cancel_keyboard()
     
+    await safe_edit_message(callback, text, keyboard)
     await state.set_state(OrderStates.waiting_for_photo)
     await callback.answer()
 
@@ -142,34 +162,32 @@ async def start_create_order(callback: CallbackQuery, state: FSMContext):
 async def show_earnings_day(callback: CallbackQuery):
     """Показать заработок за сегодня"""
     user_id = await db.get_or_create_user(
-        callback.from_user.id, 
+        callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
     earnings = await db.get_user_earnings_today(user_id)
     
-    await callback.message.edit_text(
-        f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб.",
-        parse_mode="HTML",
-        reply_markup=get_back_to_menu_keyboard()
-    )
+    text = f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб."
+    keyboard = get_back_to_menu_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "earnings_month")
 async def show_earnings_month(callback: CallbackQuery):
     """Показать заработок за месяц"""
     user_id = await db.get_or_create_user(
-        callback.from_user.id, 
+        callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
     earnings = await db.get_user_earnings_month(user_id)
     
-    await callback.message.edit_text(
-        f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб.",
-        parse_mode="HTML",
-        reply_markup=get_back_to_menu_keyboard()
-    )
+    text = f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб."
+    keyboard = get_back_to_menu_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "help")
@@ -195,11 +213,9 @@ async def show_help(callback: CallbackQuery):
         "Обратитесь к администратору"
     )
     
-    await callback.message.edit_text(
-        help_text,
-        parse_mode="HTML",
-        reply_markup=get_back_to_menu_keyboard()
-    )
+    keyboard = get_back_to_menu_keyboard()
+    
+    await safe_edit_message(callback, help_text, keyboard)
     await callback.answer()
 
 @router.message(StateFilter(OrderStates.waiting_for_photo), F.photo)
@@ -267,12 +283,10 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
     
     set_type_text = "один диск" if set_type == "single" else "комплект"
     
-    await callback.message.edit_text(
-        f"📋 <b>Тип заказа:</b> {set_type_text}\n\n"
-        "Выберите размер диска:",
-        parse_mode="HTML",
-        reply_markup=get_size_keyboard()
-    )
+    text = f"📋 <b>Тип заказа:</b> {set_type_text}\n\nВыберите размер диска:"
+    keyboard = get_size_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     
     await state.set_state(OrderStates.waiting_for_size)
 
@@ -285,12 +299,10 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
     
     await state.update_data(size=size)
     
-    await callback.message.edit_text(
-        f"📏 <b>Размер диска:</b> {size}\n\n"
-        "Нужен ли алюмохром?",
-        parse_mode="HTML",
-        reply_markup=get_alumochrome_keyboard()
-    )
+    text = f"📏 <b>Размер диска:</b> {size}\n\nНужен ли алюмохром?"
+    keyboard = get_alumochrome_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     
     await state.set_state(OrderStates.waiting_for_alumochrome)
     await callback.answer()
@@ -322,12 +334,10 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     
     # Проверяем, не существует ли уже такой номер заказа (дополнительная проверка)
     if await db.check_order_number_exists(data["order_number"]):
-        await callback.message.edit_text(
-            f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует!</b>\n\n"
-            f"Что вы хотите сделать?",
-            parse_mode="HTML",
-            reply_markup=get_order_exists_keyboard(data["order_number"])
-        )
+        text = f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует!</b>\n\nЧто вы хотите сделать?"
+        keyboard = get_order_exists_keyboard(data["order_number"])
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("❌ Номер заказа уже существует")
         return
     
@@ -357,27 +367,25 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
         set_type_text = "один диск" if set_type == "single" else "комплект"
         alumochrome_text = "Да" if alumochrome else "Нет"
         
-        await callback.message.edit_text(
-            f"✅ <b>Заказ сформирован!</b>\n\n"
-            f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
-            f"🔹 <b>Тип:</b> {set_type_text}\n"
-            f"📏 <b>Размер:</b> {size}\n"
-            f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
-            f"💰 <b>Цена:</b> {price:,} руб.\n\n"
-            f"Заказ отправлен на рассмотрение администратору.",
-            parse_mode="HTML",
-            reply_markup=get_back_to_menu_keyboard()
-        )
+        text = (f"✅ <b>Заказ сформирован!</b>\n\n"
+                f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
+                f"🔹 <b>Тип:</b> {set_type_text}\n"
+                f"📏 <b>Размер:</b> {size}\n"
+                f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
+                f"💰 <b>Цена:</b> {price:,} руб.\n\n"
+                f"Заказ отправлен на рассмотрение администратору.")
+        keyboard = get_back_to_menu_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         
     except Exception as e:
         logging.error(f"Ошибка создания заказа: {e}")
-        await callback.message.edit_text(
-            f"❌ <b>Ошибка создания заказа!</b>\n\n"
-            f"Заказ с номером '{data['order_number']}' уже существует.\n"
-            f"Пожалуйста, используйте другой номер заказа.",
-            parse_mode="HTML",
-            reply_markup=get_back_to_menu_keyboard()
-        )
+        text = (f"❌ <b>Ошибка создания заказа!</b>\n\n"
+                f"Заказ с номером '{data['order_number']}' уже существует.\n"
+                f"Пожалуйста, используйте другой номер заказа.")
+        keyboard = get_back_to_menu_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("❌ Ошибка: номер заказа уже существует")
         return
     
@@ -395,33 +403,29 @@ async def process_overwrite_order(callback: CallbackQuery, state: FSMContext):
         # Сохраняем номер заказа в состояние
         await state.update_data(order_number=order_number)
         
-        await callback.message.edit_text(
-            f"✅ <b>Старый заказ удален!</b>\n\n"
-            f"📋 <b>Номер заказа:</b> {order_number}\n\n"
-            f"Выберите тип заказа:",
-            parse_mode="HTML",
-            reply_markup=get_set_type_keyboard()
-        )
+        text = (f"✅ <b>Старый заказ удален!</b>\n\n"
+                f"📋 <b>Номер заказа:</b> {order_number}\n\n"
+                f"Выберите тип заказа:")
+        keyboard = get_set_type_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         
         await state.set_state(OrderStates.waiting_for_set_type)
         await callback.answer("✅ Старый заказ удален, продолжаем создание нового")
     else:
-        await callback.message.edit_text(
-            "❌ <b>Ошибка удаления заказа!</b>\n\n"
-            "Попробуйте еще раз или введите другой номер заказа.",
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard()
-        )
+        text = "❌ <b>Ошибка удаления заказа!</b>\n\nПопробуйте еще раз или введите другой номер заказа."
+        keyboard = get_cancel_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("❌ Ошибка удаления заказа")
 
 @router.callback_query(F.data == "change_order_number")
 async def process_change_order_number(callback: CallbackQuery, state: FSMContext):
     """Обработка смены номера заказа"""
-    await callback.message.edit_text(
-        "📝 <b>Введите новый номер заказа:</b>",
-        parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
-    )
+    text = "📝 <b>Введите новый номер заказа:</b>"
+    keyboard = get_cancel_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     
     await state.set_state(OrderStates.waiting_for_order_number)
     await callback.answer("Введите новый номер заказа")
@@ -430,12 +434,11 @@ async def process_change_order_number(callback: CallbackQuery, state: FSMContext
 async def process_cancel(callback: CallbackQuery, state: FSMContext):
     """Обработка отмены заказа"""
     await state.clear()
-    await callback.message.edit_text(
-        "❌ <b>Заказ отменен</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_main_menu_keyboard()
-    )
+    
+    text = "❌ <b>Заказ отменен</b>\n\nВыберите действие:"
+    keyboard = get_main_menu_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 async def send_admin_notification(bot, order_number: str, order_data: dict, username: str):

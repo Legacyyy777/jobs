@@ -1,6 +1,7 @@
 import logging
+import re
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 
@@ -17,6 +18,30 @@ from config import config
 from db import db
 
 router = Router()
+
+async def safe_edit_message(callback: CallbackQuery, text: str, keyboard: InlineKeyboardMarkup = None, parse_mode: str = "HTML"):
+    """Безопасное редактирование сообщения с проверкой на изменение содержимого"""
+    # Проверяем, отличается ли новый текст от текущего
+    current_text = callback.message.text or ""
+    current_markup = callback.message.reply_markup
+    
+    # Сравниваем тексты (убираем HTML теги для сравнения)
+    current_text_clean = re.sub(r'<[^>]+>', '', current_text).strip()
+    new_text_clean = re.sub(r'<[^>]+>', '', text).strip()
+    
+    # Если текст или клавиатура отличаются, редактируем сообщение
+    if current_text_clean != new_text_clean or current_markup != keyboard:
+        try:
+            await callback.message.edit_text(
+                text,
+                parse_mode=parse_mode,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            # Если не удалось отредактировать (например, сообщение не изменилось),
+            # просто отвечаем на callback без ошибки
+            logging.warning(f"Failed to edit message: {e}")
+    # Если содержимое не изменилось, ничего не делаем
 
 def format_order_info(order: dict) -> str:
     """Форматирует информацию о заказе"""
@@ -44,12 +69,10 @@ async def show_edit_orders_menu(callback: CallbackQuery, state: FSMContext):
     """Показать меню редактирования заказов"""
     await state.clear()
     
-    await callback.message.edit_text(
-        "✏️ <b>Редактирование заказов</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_edit_orders_keyboard()
-    )
+    text = "✏️ <b>Редактирование заказов</b>\n\nВыберите действие:"
+    keyboard = get_edit_orders_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "my_orders")
@@ -63,38 +86,25 @@ async def show_my_orders(callback: CallbackQuery):
     orders = await db.get_user_orders(user_id, limit=5)
     
     if not orders:
-        await callback.message.edit_text(
-            "📋 <b>Ваши заказы</b>\n\n"
-            "У вас пока нет заказов.",
-            parse_mode="HTML",
-            reply_markup=get_edit_orders_keyboard()
-        )
+        text = "📋 <b>Ваши заказы</b>\n\nУ вас пока нет заказов."
+        keyboard = get_edit_orders_keyboard()
     else:
         text = "📋 <b>Ваши последние заказы:</b>\n\n"
         for i, order in enumerate(orders, 1):
             text += f"{i}. {format_order_info(order)}\n\n"
-        
-        # Добавляем кнопки для каждого заказа
+        text = text[:4000]  # Ограничиваем длину сообщения
         keyboard = get_edit_orders_keyboard()
-        
-        await callback.message.edit_text(
-            text[:4000],  # Ограничиваем длину сообщения
-            parse_mode="HTML",
-            reply_markup=keyboard
-        )
     
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "find_order")
 async def start_find_order(callback: CallbackQuery, state: FSMContext):
     """Начать поиск заказа по номеру"""
-    await callback.message.edit_text(
-        "🔍 <b>Поиск заказа</b>\n\n"
-        "Введите номер заказа для поиска:",
-        parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
-    )
+    text = "🔍 <b>Поиск заказа</b>\n\nВведите номер заказа для поиска:"
+    keyboard = get_cancel_keyboard()
     
+    await safe_edit_message(callback, text, keyboard)
     await state.set_state(EditOrderStates.waiting_for_order_number)
     await callback.answer()
 
@@ -158,20 +168,17 @@ async def show_order_actions(callback: CallbackQuery):
     order = await db.get_user_order_by_id(user_id, order_id)
     
     if not order:
-        await callback.message.edit_text(
-            "❌ <b>Заказ не найден!</b>\n\n"
-            "Заказ не существует или не принадлежит вам.",
-            parse_mode="HTML",
-            reply_markup=get_edit_orders_keyboard()
-        )
+        text = "❌ <b>Заказ не найден!</b>\n\nЗаказ не существует или не принадлежит вам."
+        keyboard = get_edit_orders_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("❌ Заказ не найден")
         return
     
-    await callback.message.edit_text(
-        f"📋 <b>Действия с заказом</b>\n\n{format_order_info(order)}",
-        parse_mode="HTML",
-        reply_markup=get_order_actions_keyboard(order_id)
-    )
+    text = f"📋 <b>Действия с заказом</b>\n\n{format_order_info(order)}"
+    keyboard = get_order_actions_keyboard(order_id)
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("change_status_"))
@@ -179,12 +186,10 @@ async def start_change_status(callback: CallbackQuery):
     """Начать изменение статуса заказа"""
     order_id = int(callback.data.split("_")[2])
     
-    await callback.message.edit_text(
-        "✏️ <b>Изменение статуса заказа</b>\n\n"
-        "Выберите новый статус:",
-        parse_mode="HTML",
-        reply_markup=get_status_keyboard(order_id)
-    )
+    text = "✏️ <b>Изменение статуса заказа</b>\n\nВыберите новый статус:"
+    keyboard = get_status_keyboard(order_id)
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("set_status_"))
@@ -212,11 +217,10 @@ async def process_change_status(callback: CallbackQuery):
     # Получаем обновленную информацию о заказе
     updated_order = await db.get_user_order_by_id(user_id, order_id)
     
-    await callback.message.edit_text(
-        f"✅ <b>Статус обновлен!</b>\n\n{format_order_info(updated_order)}",
-        parse_mode="HTML",
-        reply_markup=get_order_actions_keyboard(order_id)
-    )
+    text = f"✅ <b>Статус обновлен!</b>\n\n{format_order_info(updated_order)}"
+    keyboard = get_order_actions_keyboard(order_id)
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer("✅ Статус обновлен")
 
 @router.callback_query(F.data.startswith("change_price_"))
@@ -226,13 +230,10 @@ async def start_change_price(callback: CallbackQuery, state: FSMContext):
     
     await state.update_data(order_id=order_id)
     
-    await callback.message.edit_text(
-        "💰 <b>Изменение цены заказа</b>\n\n"
-        "Введите новую цену в рублях:",
-        parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
-    )
+    text = "💰 <b>Изменение цены заказа</b>\n\nВведите новую цену в рублях:"
+    keyboard = get_cancel_keyboard()
     
+    await safe_edit_message(callback, text, keyboard)
     await state.set_state(EditOrderStates.waiting_for_new_price)
     await callback.answer()
 
@@ -296,13 +297,12 @@ async def start_delete_order(callback: CallbackQuery):
     """Начать удаление заказа"""
     order_id = int(callback.data.split("_")[2])
     
-    await callback.message.edit_text(
-        "🗑️ <b>Удаление заказа</b>\n\n"
-        "⚠️ <b>ВНИМАНИЕ!</b> Это действие нельзя отменить.\n\n"
-        "Вы уверены, что хотите удалить этот заказ?",
-        parse_mode="HTML",
-        reply_markup=get_confirm_delete_keyboard(order_id)
-    )
+    text = ("🗑️ <b>Удаление заказа</b>\n\n"
+            "⚠️ <b>ВНИМАНИЕ!</b> Это действие нельзя отменить.\n\n"
+            "Вы уверены, что хотите удалить этот заказ?")
+    keyboard = get_confirm_delete_keyboard(order_id)
+    
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("confirm_delete_"))
@@ -326,18 +326,16 @@ async def process_delete_order(callback: CallbackQuery):
     success = await db.delete_order_by_id(order_id)
     
     if success:
-        await callback.message.edit_text(
-            "✅ <b>Заказ удален!</b>\n\n"
-            f"Заказ #{order_id} (номер: {order['order_number']}) успешно удален.",
-            parse_mode="HTML",
-            reply_markup=get_edit_orders_keyboard()
-        )
+        text = (f"✅ <b>Заказ удален!</b>\n\n"
+                f"Заказ #{order_id} (номер: {order['order_number']}) успешно удален.")
+        keyboard = get_edit_orders_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("✅ Заказ удален")
     else:
-        await callback.message.edit_text(
-            "❌ <b>Ошибка удаления заказа!</b>\n\n"
-            "Попробуйте еще раз или обратитесь к администратору.",
-            parse_mode="HTML",
-            reply_markup=get_order_actions_keyboard(order_id)
-        )
+        text = ("❌ <b>Ошибка удаления заказа!</b>\n\n"
+                "Попробуйте еще раз или обратитесь к администратору.")
+        keyboard = get_order_actions_keyboard(order_id)
+        
+        await safe_edit_message(callback, text, keyboard)
         await callback.answer("❌ Ошибка удаления")
