@@ -66,6 +66,12 @@ def format_order_info(order: dict) -> str:
         'rejected': '❌'
     }
     
+    status_text = {
+        'draft': 'Черновик',
+        'confirmed': 'Подтвержден',
+        'rejected': 'Отклонен'
+    }
+    
     # Базовая информация
     text = (
         f"🆔 <b>ID:</b> {order['id']}\n"
@@ -119,7 +125,7 @@ def format_order_info(order: dict) -> str:
     # Завершаем информацию
     text += (
         f"💰 <b>Цена:</b> {order['price']:,} руб.\n"
-        f"{status_emoji.get(order['status'], '❓')} <b>Статус:</b> {order['status']}\n"
+        f"{status_emoji.get(order['status'], '❓')} <b>Статус:</b> {status_text.get(order['status'], order['status'])}\n"
         f"📅 <b>Создан:</b> {order['created_at'].strftime('%d.%m.%Y %H:%M')}"
     )
     

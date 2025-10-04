@@ -960,8 +960,7 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
     
     text = (
         f"🆕 <b>Новый заказ</b>\n\n"
-        f"👤 <b>Исполнитель:</b> @{username}\n"
-        f"🔧 <b>Профессия:</b> {profession_text}\n"
+        f"{profession_text}: @{username}\n"
         f"📋 <b>Номер заказа:</b> {order_number}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
         f"💰 <b>Цена:</b> {order_data.get('price', 0):,} руб."
