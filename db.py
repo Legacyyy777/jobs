@@ -54,7 +54,7 @@ class Database:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS orders (
                     id SERIAL PRIMARY KEY,
-                    order_number VARCHAR(50) UNIQUE NOT NULL,
+                    order_number VARCHAR(50) NOT NULL,
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                     set_type VARCHAR(20) NOT NULL, -- 'single', 'set', 'nakidka', 'suspensia'
                     size VARCHAR(10), -- 'R15', 'R16', 'R17' (NULL для насадок и суспортов)
@@ -89,6 +89,22 @@ class Database:
                     await conn.execute("ALTER TABLE orders DROP COLUMN IF EXISTS profession")
                 except Exception:
                     pass  # Игнорируем ошибку, если колонка не существует
+                
+                # Удаляем старое ограничение уникальности на order_number, если оно существует
+                try:
+                    await conn.execute("ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_order_number_key")
+                except Exception:
+                    pass  # Игнорируем ошибку, если ограничение не существует
+                
+                # Добавляем составной уникальный ключ (order_number + профессия пользователя)
+                # Это позволит иметь одинаковые номера заказов для разных профессий
+                try:
+                    await conn.execute("""
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_number_profession 
+                        ON orders (order_number, (SELECT profession FROM users WHERE users.id = orders.user_id))
+                    """)
+                except Exception:
+                    pass  # Игнорируем ошибку, если индекс уже существует
             except Exception as e:
                 # Игнорируем ошибки, если колонки уже существуют
                 pass
