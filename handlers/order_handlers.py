@@ -16,7 +16,9 @@ from keyboards import (
     get_cancel_keyboard,
     get_back_to_menu_keyboard,
     get_start_keyboard,
-    get_order_exists_keyboard
+    get_order_exists_keyboard,
+    get_profession_keyboard,
+    get_spraying_keyboard
 )
 from config import config
 from db import db
@@ -47,92 +49,155 @@ async def safe_edit_message(callback: CallbackQuery, text: str, keyboard: Inline
             logging.warning(f"Failed to edit message: {e}")
     # Если содержимое не изменилось, ничего не делаем
 
-def calculate_price(set_type: str, size: str = None, alumochrome: bool = False, suspensia_type: str = None, quantity: int = 1) -> int:
+def calculate_price(profession: str, set_type: str, size: str = None, alumochrome: bool = False, 
+                   suspensia_type: str = None, quantity: int = 1, spraying_deep: int = 0, spraying_shallow: int = 0) -> int:
     """Рассчитывает цену заказа"""
     base_price = 0
     
     # Логируем для отладки
-    logging.info(f"Расчет цены: set_type={set_type}, size={size}, alumochrome={alumochrome}, suspensia_type={suspensia_type}, quantity={quantity}")
+    logging.info(f"Расчет цены: profession={profession}, set_type={set_type}, size={size}, alumochrome={alumochrome}, suspensia_type={suspensia_type}, quantity={quantity}, spraying_deep={spraying_deep}, spraying_shallow={spraying_shallow}")
     
-    # Обработка новых типов заказов
-    if set_type == "nakidka":
-        base_price = config.PRICE_NAKIDKA
-        logging.info(f"Цена за насадки: {base_price} руб.")
-        return base_price
-    
-    elif set_type == "suspensia":
-        if suspensia_type == "paint":
-            base_price = config.PRICE_SUSPENSIA_PAINT
-        elif suspensia_type == "logo":
-            base_price = config.PRICE_SUSPENSIA_LOGO
+    if profession == "sandblaster":
+        # Логика для пескоструйщика
+        if set_type == "nakidka":
+            base_price = config.PRICE_SANDBLASTER_NAKIDKA
+            logging.info(f"Цена за насадки (пескоструйщик): {base_price} руб.")
+            return base_price
         
-        # Умножаем на количество
-        total_price = base_price * quantity
-        logging.info(f"Цена за суспорты: {base_price} руб. × {quantity} шт. = {total_price} руб.")
+        elif set_type == "suspensia":
+            base_price = config.PRICE_SANDBLASTER_SUSPENSIA
+            total_price = base_price * quantity
+            logging.info(f"Цена за супорта (пескоструйщик): {base_price} руб. × {quantity} шт. = {total_price} руб.")
+            return total_price
+        
+        elif set_type == "single":
+            # Цены для одиночных дисков пескоструйщика
+            price_map = {
+                "R12": config.PRICE_SANDBLASTER_SINGLE_R12,
+                "R13": config.PRICE_SANDBLASTER_SINGLE_R13,
+                "R14": config.PRICE_SANDBLASTER_SINGLE_R14,
+                "R15": config.PRICE_SANDBLASTER_SINGLE_R15,
+                "R16": config.PRICE_SANDBLASTER_SINGLE_R16,
+                "R17": config.PRICE_SANDBLASTER_SINGLE_R17,
+                "R18": config.PRICE_SANDBLASTER_SINGLE_R18,
+                "R19": config.PRICE_SANDBLASTER_SINGLE_R19,
+                "R20": config.PRICE_SANDBLASTER_SINGLE_R20,
+                "R21": config.PRICE_SANDBLASTER_SINGLE_R21,
+                "R22": config.PRICE_SANDBLASTER_SINGLE_R22,
+                "R23": config.PRICE_SANDBLASTER_SINGLE_R23,
+                "R24": config.PRICE_SANDBLASTER_SINGLE_R24,
+            }
+            base_price = price_map.get(size, 0)
+            
+        elif set_type == "set":
+            # Цены для комплектов пескоструйщика
+            price_map = {
+                "R12": config.PRICE_SANDBLASTER_SET_R12,
+                "R13": config.PRICE_SANDBLASTER_SET_R13,
+                "R14": config.PRICE_SANDBLASTER_SET_R14,
+                "R15": config.PRICE_SANDBLASTER_SET_R15,
+                "R16": config.PRICE_SANDBLASTER_SET_R16,
+                "R17": config.PRICE_SANDBLASTER_SET_R17,
+                "R18": config.PRICE_SANDBLASTER_SET_R18,
+                "R19": config.PRICE_SANDBLASTER_SET_R19,
+                "R20": config.PRICE_SANDBLASTER_SET_R20,
+                "R21": config.PRICE_SANDBLASTER_SET_R21,
+                "R22": config.PRICE_SANDBLASTER_SET_R22,
+                "R23": config.PRICE_SANDBLASTER_SET_R23,
+                "R24": config.PRICE_SANDBLASTER_SET_R24,
+            }
+            base_price = price_map.get(size, 0)
+        
+        # Добавляем стоимость напыления
+        spraying_price = (spraying_deep * config.PRICE_SPRAYING_DEEP) + (spraying_shallow * config.PRICE_SPRAYING_SHALLOW)
+        total_price = base_price + spraying_price
+        
+        logging.info(f"Цена за {set_type} {size} (пескоструйщик): {base_price} руб. + напыление: {spraying_price} руб. = {total_price} руб.")
         return total_price
     
-    # Обработка дисков (старая логика)
-    elif set_type == "single":
-        if size == "R13":
-            base_price = config.PRICE_SINGLE_R13
-        elif size == "R14":
-            base_price = config.PRICE_SINGLE_R14
-        elif size == "R15":
-            base_price = config.PRICE_SINGLE_R15
-        elif size == "R16":
-            base_price = config.PRICE_SINGLE_R16
-        elif size == "R17":
-            base_price = config.PRICE_SINGLE_R17
-        elif size == "R18":
-            base_price = config.PRICE_SINGLE_R18
-        elif size == "R19":
-            base_price = config.PRICE_SINGLE_R19
-        elif size == "R20":
-            base_price = config.PRICE_SINGLE_R20
-        elif size == "R21":
-            base_price = config.PRICE_SINGLE_R21
-        elif size == "R22":
-            base_price = config.PRICE_SINGLE_R22
-        elif size == "R23":
-            base_price = config.PRICE_SINGLE_R23
-        elif size == "R24":
-            base_price = config.PRICE_SINGLE_R24
+    else:
+        # Логика для маляра (существующая)
+        if set_type == "nakidka":
+            base_price = config.PRICE_NAKIDKA
+            logging.info(f"Цена за насадки (маляр): {base_price} руб.")
+            return base_price
         
-        # Добавляем доплату за подготовку
-        base_price += config.PRICE_PREP_SINGLE
-        
-    elif set_type == "set":
-        if size == "R13":
-            base_price = config.PRICE_SET_R13
-        elif size == "R14":
-            base_price = config.PRICE_SET_R14
-        elif size == "R15":
-            base_price = config.PRICE_SET_R15
-        elif size == "R16":
-            base_price = config.PRICE_SET_R16
-        elif size == "R17":
-            base_price = config.PRICE_SET_R17
-        elif size == "R18":
-            base_price = config.PRICE_SET_R18
-        elif size == "R19":
-            base_price = config.PRICE_SET_R19
-        elif size == "R20":
-            base_price = config.PRICE_SET_R20
-        elif size == "R21":
-            base_price = config.PRICE_SET_R21
-        elif size == "R22":
-            base_price = config.PRICE_SET_R22
-        elif size == "R23":
-            base_price = config.PRICE_SET_R23
-        elif size == "R24":
-            base_price = config.PRICE_SET_R24
-        
-        # Добавляем доплату за подготовку
-        base_price += config.PRICE_PREP_SET
+        elif set_type == "suspensia":
+            if suspensia_type == "paint":
+                base_price = config.PRICE_SUSPENSIA_PAINT
+            elif suspensia_type == "logo":
+                base_price = config.PRICE_SUSPENSIA_LOGO
+            
+            total_price = base_price * quantity
+            logging.info(f"Цена за супорта (маляр): {base_price} руб. × {quantity} шт. = {total_price} руб.")
+            return total_price
     
-    # Добавляем доплату за алюмохром (только для дисков)
-    if alumochrome and set_type in ["single", "set"]:
-        base_price += config.PRICE_ALUMOCHROME_EXTRA
+        # Обработка дисков для маляра
+        elif set_type == "single":
+            if size == "R12":
+                base_price = config.PRICE_SINGLE_R12
+            elif size == "R13":
+                base_price = config.PRICE_SINGLE_R13
+            elif size == "R14":
+                base_price = config.PRICE_SINGLE_R14
+            elif size == "R15":
+                base_price = config.PRICE_SINGLE_R15
+            elif size == "R16":
+                base_price = config.PRICE_SINGLE_R16
+            elif size == "R17":
+                base_price = config.PRICE_SINGLE_R17
+            elif size == "R18":
+                base_price = config.PRICE_SINGLE_R18
+            elif size == "R19":
+                base_price = config.PRICE_SINGLE_R19
+            elif size == "R20":
+                base_price = config.PRICE_SINGLE_R20
+            elif size == "R21":
+                base_price = config.PRICE_SINGLE_R21
+            elif size == "R22":
+                base_price = config.PRICE_SINGLE_R22
+            elif size == "R23":
+                base_price = config.PRICE_SINGLE_R23
+            elif size == "R24":
+                base_price = config.PRICE_SINGLE_R24
+        
+            # Добавляем доплату за подготовку
+            base_price += config.PRICE_PREP_SINGLE
+        
+        elif set_type == "set":
+            if size == "R12":
+                base_price = config.PRICE_SET_R12
+            elif size == "R13":
+                base_price = config.PRICE_SET_R13
+            elif size == "R14":
+                base_price = config.PRICE_SET_R14
+            elif size == "R15":
+                base_price = config.PRICE_SET_R15
+            elif size == "R16":
+                base_price = config.PRICE_SET_R16
+            elif size == "R17":
+                base_price = config.PRICE_SET_R17
+            elif size == "R18":
+                base_price = config.PRICE_SET_R18
+            elif size == "R19":
+                base_price = config.PRICE_SET_R19
+            elif size == "R20":
+                base_price = config.PRICE_SET_R20
+            elif size == "R21":
+                base_price = config.PRICE_SET_R21
+            elif size == "R22":
+                base_price = config.PRICE_SET_R22
+            elif size == "R23":
+                base_price = config.PRICE_SET_R23
+            elif size == "R24":
+                base_price = config.PRICE_SET_R24
+            
+            # Добавляем доплату за подготовку
+            base_price += config.PRICE_PREP_SET
+        
+        # Добавляем доплату за алюмохром (только для дисков маляра)
+        if alumochrome and set_type in ["single", "set"]:
+            base_price += config.PRICE_ALUMOCHROME_EXTRA
     
     logging.info(f"Итоговая цена: {base_price} руб.")
     return base_price
@@ -174,7 +239,22 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "create_order")
 async def start_create_order(callback: CallbackQuery, state: FSMContext):
     """Начать создание заказа"""
-    text = "📸 <b>Создание заказа</b>\n\nОтправьте фото диска(ов), который нужно покрасить:"
+    text = "👨‍🎨 <b>Выберите профессию:</b>"
+    keyboard = get_profession_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
+    await state.set_state(OrderStates.waiting_for_profession)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("profession_"), StateFilter(OrderStates.waiting_for_profession))
+async def process_profession(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора профессии"""
+    profession = callback.data.split("_")[1]  # painter или sandblaster
+    
+    await state.update_data(profession=profession)
+    
+    profession_text = "🎨 Маляр" if profession == "painter" else "💨 Пескоструйщик"
+    text = f"📸 <b>Создание заказа ({profession_text})</b>\n\nОтправьте фото диска(ов), который нужно покрасить:"
     keyboard = get_cancel_keyboard()
     
     await safe_edit_message(callback, text, keyboard)
@@ -311,7 +391,8 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
     if set_type == "nakidka":
         # Для насадок рассчитываем цену и создаем заказ
         data = await state.get_data()
-        price = calculate_price("nakidka")
+        profession = data.get("profession", "painter")
+        price = calculate_price(profession, "nakidka")
         await state.update_data(price=price)
         
         # Создаем заказ
@@ -319,12 +400,24 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
         return
         
     elif set_type == "suspensia":
-        # Для супортов выбираем тип (покраска или с логотипом)
-        text = "🔸 <b>Супорта</b>\n\nВыберите тип:"
-        keyboard = get_suspensia_type_keyboard()
+        data = await state.get_data()
+        profession = data.get("profession", "painter")
         
-        await safe_edit_message(callback, text, keyboard)
-        await state.set_state(OrderStates.waiting_for_suspensia_type)
+        if profession == "sandblaster":
+            # Для пескоструйщика сразу спрашиваем количество
+            text = "🔸 <b>Супорта</b>\n\nВведите количество штук:"
+            keyboard = get_cancel_keyboard()
+            
+            await safe_edit_message(callback, text, keyboard)
+            await state.set_state(OrderStates.waiting_for_suspensia_quantity)
+        else:
+            # Для маляра выбираем тип (покраска или с логотипом)
+            text = "🔸 <b>Супорта</b>\n\nВыберите тип:"
+            keyboard = get_suspensia_type_keyboard()
+            
+            await safe_edit_message(callback, text, keyboard)
+            await state.set_state(OrderStates.waiting_for_suspensia_type)
+        
         await callback.answer()
         return
         
@@ -348,12 +441,24 @@ async def process_size(callback: CallbackQuery, state: FSMContext):
     
     await state.update_data(size=size)
     
-    text = f"📏 <b>Размер диска:</b> {size}\n\nНужен ли алюмохром?"
-    keyboard = get_alumochrome_keyboard()
+    data = await state.get_data()
+    profession = data.get("profession", "painter")
     
-    await safe_edit_message(callback, text, keyboard)
+    if profession == "sandblaster":
+        # Для пескоструйщика спрашиваем про напыление
+        text = f"📏 <b>Размер диска:</b> {size}\n\nБыло ли напыление?"
+        keyboard = get_spraying_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_spraying)
+    else:
+        # Для маляра спрашиваем про алюмохром
+        text = f"📏 <b>Размер диска:</b> {size}\n\nНужен ли алюмохром?"
+        keyboard = get_alumochrome_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_alumochrome)
     
-    await state.set_state(OrderStates.waiting_for_alumochrome)
     await callback.answer()
 
 @router.callback_query(F.data.startswith("suspensia_type_"), StateFilter(OrderStates.waiting_for_suspensia_type))
@@ -369,6 +474,91 @@ async def process_suspensia_type(callback: CallbackQuery, state: FSMContext):
     await safe_edit_message(callback, text, keyboard)
     await state.set_state(OrderStates.waiting_for_suspensia_quantity)
     await callback.answer()
+
+@router.callback_query(F.data.startswith("spraying_"), StateFilter(OrderStates.waiting_for_spraying))
+async def process_spraying(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора напыления для пескоструйщика"""
+    spraying_choice = callback.data.split("_")[1]  # yes или no
+    
+    if spraying_choice == "no":
+        # Нет напыления - создаем заказ
+        data = await state.get_data()
+        profession = data.get("profession", "painter")
+        set_type = data.get("set_type")
+        size = data.get("size")
+        
+        price = calculate_price(profession, set_type, size, spraying_deep=0, spraying_shallow=0)
+        await state.update_data(price=price, spraying_deep=0, spraying_shallow=0)
+        
+        await create_order_from_data(callback, state)
+        return
+    else:
+        # Есть напыление - спрашиваем количество глубоких
+        text = "💨 <b>Напыление</b>\n\nСколько было глубоких напылений?\n(Введите 0, если не было)"
+        keyboard = get_cancel_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_deep_spraying)
+    
+    await callback.answer()
+
+@router.message(StateFilter(OrderStates.waiting_for_deep_spraying))
+async def process_deep_spraying(message: Message, state: FSMContext):
+    """Обработка количества глубоких напылений"""
+    if not message.text:
+        await message.answer("❌ Количество не может быть пустым. Попробуйте еще раз:")
+        return
+    
+    try:
+        deep_count = int(message.text.strip())
+        
+        if deep_count < 0:
+            await message.answer("❌ Количество не может быть отрицательным. Попробуйте еще раз:")
+            return
+        
+        await state.update_data(spraying_deep=deep_count)
+        
+        text = "💨 <b>Напыление</b>\n\nСколько было неглубоких напылений?\n(Введите 0, если не было)"
+        keyboard = get_cancel_keyboard()
+        
+        await message.answer(text, reply_markup=keyboard)
+        await state.set_state(OrderStates.waiting_for_shallow_spraying)
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат количества. Введите число:")
+        return
+
+@router.message(StateFilter(OrderStates.waiting_for_shallow_spraying))
+async def process_shallow_spraying(message: Message, state: FSMContext):
+    """Обработка количества неглубоких напылений"""
+    if not message.text:
+        await message.answer("❌ Количество не может быть пустым. Попробуйте еще раз:")
+        return
+    
+    try:
+        shallow_count = int(message.text.strip())
+        
+        if shallow_count < 0:
+            await message.answer("❌ Количество не может быть отрицательным. Попробуйте еще раз:")
+            return
+        
+        await state.update_data(spraying_shallow=shallow_count)
+        
+        # Рассчитываем цену и создаем заказ
+        data = await state.get_data()
+        profession = data.get("profession", "painter")
+        set_type = data.get("set_type")
+        size = data.get("size")
+        spraying_deep = data.get("spraying_deep", 0)
+        
+        price = calculate_price(profession, set_type, size, spraying_deep=spraying_deep, spraying_shallow=shallow_count)
+        await state.update_data(price=price)
+        
+        await create_order_from_message_data(message, state)
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат количества. Введите число:")
+        return
 
 @router.message(StateFilter(OrderStates.waiting_for_suspensia_quantity))
 async def process_suspensia_quantity(message: Message, state: FSMContext):
@@ -392,12 +582,16 @@ async def process_suspensia_quantity(message: Message, state: FSMContext):
         
         # Рассчитываем цену и сохраняем
         data = await state.get_data()
-        suspensia_type = data["suspensia_type"]
-        price = calculate_price(
-            set_type="suspensia",
-            suspensia_type=suspensia_type,
-            quantity=quantity
-        )
+        profession = data.get("profession", "painter")
+        
+        if profession == "sandblaster":
+            # Для пескоструйщика супорты без типа
+            price = calculate_price(profession, "suspensia", quantity=quantity)
+        else:
+            # Для маляра супорты с типом
+            suspensia_type = data["suspensia_type"]
+            price = calculate_price(profession, "suspensia", suspensia_type=suspensia_type, quantity=quantity)
+        
         await state.update_data(price=price)
         
         # Создаем заказ
@@ -430,23 +624,29 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
+            profession=data.get("profession", "painter"),
             set_type=data["set_type"],
             size=data.get("size"),
             alumochrome=data.get("alumochrome", False),
             price=data["price"],
             photo_file_id=data["photo_file_id"],
             suspensia_type=data.get("suspensia_type"),
-            quantity=data.get("quantity", 1)
+            quantity=data.get("quantity", 1),
+            spraying_deep=data.get("spraying_deep", 0),
+            spraying_shallow=data.get("spraying_shallow", 0)
         )
         
         # Отправляем уведомление в чат модерации
         order_data = {
             "order_number": data["order_number"],
+            "profession": data.get("profession", "painter"),
             "set_type": data["set_type"],
             "size": data.get("size"),
             "alumochrome": data.get("alumochrome", False),
             "suspensia_type": data.get("suspensia_type"),
             "quantity": data.get("quantity", 1),
+            "spraying_deep": data.get("spraying_deep", 0),
+            "spraying_shallow": data.get("spraying_shallow", 0),
             "price": data["price"],
             "photo_file_id": data["photo_file_id"]
         }
@@ -479,23 +679,43 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
 
 def get_set_type_text(set_type: str, data: dict) -> str:
     """Возвращает читаемый текст типа заказа"""
+    profession = data.get("profession", "painter")
+    
     if set_type == "single":
-        return "один диск"
+        profession_text = "один диск"
     elif set_type == "set":
-        return "комплект"
+        profession_text = "комплект"
     elif set_type == "nakidka":
-        return "насадки"
+        profession_text = "насадки"
     elif set_type == "suspensia":
-        suspensia_type = data.get("suspensia_type")
-        quantity = data.get("quantity", 1)
-        if suspensia_type == "paint":
-            return f"супорта покраска ({quantity} шт.)"
-        elif suspensia_type == "logo":
-            return f"супорта с логотипом ({quantity} шт.)"
+        if profession == "sandblaster":
+            quantity = data.get("quantity", 1)
+            profession_text = f"супорта ({quantity} шт.)"
         else:
-            return f"супорта ({quantity} шт.)"
+            suspensia_type = data.get("suspensia_type")
+            quantity = data.get("quantity", 1)
+            if suspensia_type == "paint":
+                profession_text = f"супорта покраска ({quantity} шт.)"
+            elif suspensia_type == "logo":
+                profession_text = f"супорта с логотипом ({quantity} шт.)"
+            else:
+                profession_text = f"супорта ({quantity} шт.)"
     else:
-        return set_type
+        profession_text = set_type
+    
+    # Добавляем информацию о напылении для пескоструйщика
+    if profession == "sandblaster" and set_type in ["single", "set"]:
+        spraying_deep = data.get("spraying_deep", 0)
+        spraying_shallow = data.get("spraying_shallow", 0)
+        if spraying_deep > 0 or spraying_shallow > 0:
+            spraying_info = []
+            if spraying_deep > 0:
+                spraying_info.append(f"{spraying_deep} глубоких")
+            if spraying_shallow > 0:
+                spraying_info.append(f"{spraying_shallow} неглубоких")
+            profession_text += f" (напыление: {', '.join(spraying_info)})"
+    
+    return profession_text
 
 @router.callback_query(F.data.startswith("alumochrome_"), StateFilter(OrderStates.waiting_for_alumochrome))
 async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
@@ -504,11 +724,12 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     
     # Получаем все данные заказа
     data = await state.get_data()
+    profession = data.get("profession", "painter")
     set_type = data["set_type"]
     size = data["size"]
     
     # Рассчитываем цену
-    price = calculate_price(set_type, size, alumochrome)
+    price = calculate_price(profession, set_type, size, alumochrome)
     
     # Сохраняем данные
     await state.update_data(alumochrome=alumochrome, price=price)
@@ -539,23 +760,29 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
+            profession=data.get("profession", "painter"),
             set_type=data["set_type"],
             size=data.get("size"),
             alumochrome=data.get("alumochrome", False),
             price=data["price"],
             photo_file_id=data["photo_file_id"],
             suspensia_type=data.get("suspensia_type"),
-            quantity=data.get("quantity", 1)
+            quantity=data.get("quantity", 1),
+            spraying_deep=data.get("spraying_deep", 0),
+            spraying_shallow=data.get("spraying_shallow", 0)
         )
         
         # Отправляем уведомление в чат модерации
         order_data = {
             "order_number": data["order_number"],
+            "profession": data.get("profession", "painter"),
             "set_type": data["set_type"],
             "size": data.get("size"),
             "alumochrome": data.get("alumochrome", False),
             "suspensia_type": data.get("suspensia_type"),
             "quantity": data.get("quantity", 1),
+            "spraying_deep": data.get("spraying_deep", 0),
+            "spraying_shallow": data.get("spraying_shallow", 0),
             "price": data["price"],
             "photo_file_id": data["photo_file_id"]
         }
@@ -643,10 +870,13 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
         return
     
     set_type_text = get_set_type_text(order_data.get("set_type"), order_data)
+    profession = order_data.get("profession", "painter")
+    profession_text = "🎨 Маляр" if profession == "painter" else "💨 Пескоструйщик"
     
     text = (
         f"🆕 <b>Новый заказ</b>\n\n"
         f"👤 <b>Исполнитель:</b> @{username}\n"
+        f"🔧 <b>Профессия:</b> {profession_text}\n"
         f"📋 <b>Номер заказа:</b> {order_number}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
         f"💰 <b>Цена:</b> {order_data.get('price', 0):,} руб."
@@ -655,8 +885,23 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
     # Добавляем дополнительную информацию только для дисков
     if order_data.get("set_type") in ["single", "set"]:
         size = order_data.get('size', 'Не указан')
-        alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
-        text += f"\n📏 <b>Размер:</b> {size}\n✨ <b>Алюмохром:</b> {alumochrome_text}"
+        text += f"\n📏 <b>Размер:</b> {size}"
+        
+        if profession == "painter":
+            # Для маляра показываем алюмохром
+            alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
+            text += f"\n✨ <b>Алюмохром:</b> {alumochrome_text}"
+        else:
+            # Для пескоструйщика показываем напыление
+            spraying_deep = order_data.get("spraying_deep", 0)
+            spraying_shallow = order_data.get("spraying_shallow", 0)
+            if spraying_deep > 0 or spraying_shallow > 0:
+                spraying_info = []
+                if spraying_deep > 0:
+                    spraying_info.append(f"{spraying_deep} глубоких")
+                if spraying_shallow > 0:
+                    spraying_info.append(f"{spraying_shallow} неглубоких")
+                text += f"\n💨 <b>Напыление:</b> {', '.join(spraying_info)}"
     
     try:
         from keyboards import get_admin_order_keyboard

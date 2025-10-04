@@ -55,11 +55,14 @@ class Database:
                     id SERIAL PRIMARY KEY,
                     order_number VARCHAR(50) UNIQUE NOT NULL,
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    profession VARCHAR(20) NOT NULL, -- 'painter' или 'sandblaster'
                     set_type VARCHAR(20) NOT NULL, -- 'single', 'set', 'nakidka', 'suspensia'
                     size VARCHAR(10), -- 'R15', 'R16', 'R17' (NULL для насадок и суспортов)
                     alumochrome BOOLEAN DEFAULT FALSE,
                     suspensia_type VARCHAR(20), -- 'paint' или 'logo' (только для суспортов)
                     quantity INTEGER DEFAULT 1, -- количество суспортов
+                    spraying_deep INTEGER DEFAULT 0, -- количество глубоких напылений
+                    spraying_shallow INTEGER DEFAULT 0, -- количество неглубоких напылений
                     price INTEGER NOT NULL,
                     status VARCHAR(20) DEFAULT 'draft', -- 'draft', 'confirmed', 'rejected'
                     photo_file_id VARCHAR(255),
@@ -70,9 +73,14 @@ class Database:
             
             # Миграция для добавления новых полей
             try:
+                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1")
+                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_deep INTEGER DEFAULT 0")
+                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_shallow INTEGER DEFAULT 0")
                 await conn.execute("ALTER TABLE orders ALTER COLUMN size DROP NOT NULL")
+                # Обновляем существующие записи с профессией по умолчанию
+                await conn.execute("UPDATE orders SET profession = 'painter' WHERE profession IS NULL")
             except Exception as e:
                 # Игнорируем ошибки, если колонки уже существуют
                 pass
@@ -100,15 +108,16 @@ class Database:
             )
             return user_id
 
-    async def create_order(self, order_number: str, user_id: int, set_type: str, 
+    async def create_order(self, order_number: str, user_id: int, profession: str, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 
-                          photo_file_id: str = None, suspensia_type: str = None, quantity: int = 1) -> int:
+                          photo_file_id: str = None, suspensia_type: str = None, quantity: int = 1,
+                          spraying_deep: int = 0, spraying_shallow: int = 0) -> int:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
-            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity)
+                INSERT INTO orders (order_number, user_id, profession, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+            """, order_number, user_id, profession, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
             return order_id
 
     async def update_order_status(self, order_id: int, status: str):

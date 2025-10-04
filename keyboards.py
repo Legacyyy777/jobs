@@ -26,7 +26,7 @@ def get_size_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для выбора размера диска"""
     builder = InlineKeyboardBuilder()
     # Добавляем все размеры
-    sizes = ["R13", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21", "R22", "R23", "R24"]
+    sizes = ["R12", "R13", "R14", "R15", "R16", "R17", "R18", "R19", "R20", "R21", "R22", "R23", "R24"]
     for size in sizes:
         builder.add(InlineKeyboardButton(text=size, callback_data=f"size_{size}"))
     
@@ -142,5 +142,21 @@ def get_suspensia_type_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🎨 Покраска (500₽)", callback_data="suspensia_type_paint"))
     builder.add(InlineKeyboardButton(text="🏷️ С логотипом (750₽)", callback_data="suspensia_type_logo"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_profession_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора профессии"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🎨 Маляр", callback_data="profession_painter"))
+    builder.add(InlineKeyboardButton(text="💨 Пескоструйщик", callback_data="profession_sandblaster"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_spraying_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора напыления"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="✅ Да, было напыление", callback_data="spraying_yes"))
+    builder.add(InlineKeyboardButton(text="❌ Нет напыления", callback_data="spraying_no"))
     builder.adjust(1)
     return builder.as_markup()
