@@ -964,13 +964,36 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
         logging.warning("MODERATION_CHAT_ID не настроен, уведомление не отправлено")
         return
     
-    set_type_text = get_set_type_text(order_data.get("set_type"), order_data)
     profession = order_data.get("profession", "painter")
     profession_text = "🎨 Маляр" if profession == "painter" else "💨 Пескоструйщик"
     
+    # Получаем текст типа без информации о напылении (чтобы избежать дублирования)
+    set_type = order_data.get("set_type")
+    if set_type == "single":
+        set_type_text = "один диск"
+    elif set_type == "set":
+        set_type_text = "комплект"
+    elif set_type == "nakidka":
+        set_type_text = "насадки"
+    elif set_type == "suspensia":
+        if profession == "sandblaster":
+            quantity = order_data.get("quantity", 1)
+            set_type_text = f"супорта ({quantity} шт.)"
+        else:
+            suspensia_type = order_data.get("suspensia_type")
+            quantity = order_data.get("quantity", 1)
+            if suspensia_type == "paint":
+                set_type_text = f"супорта покраска ({quantity} шт.)"
+            elif suspensia_type == "logo":
+                set_type_text = f"супорта с логотипом ({quantity} шт.)"
+            else:
+                set_type_text = f"супорта ({quantity} шт.)"
+    else:
+        set_type_text = set_type
+    
     text = (
         f"🆕 <b>Новый заказ</b>\n\n"
-        f"{profession_text}: @{username}\n"
+        f"<b>{profession_text}:</b> @{username}\n"
         f"📋 <b>Номер заказа:</b> {order_number}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
         f"💰 <b>Цена:</b> {order_data.get('price', 0):,} руб."
