@@ -1,8 +1,11 @@
 import asyncpg
 import asyncio
+import logging
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from config import config
+
+logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self):
@@ -33,11 +36,75 @@ class Database:
                 max_inactive_connection_lifetime=300,  # 5 минут
             )
         except asyncpg.exceptions.InvalidCatalogNameError:
-            raise Exception(f"База данных '{config.DB_NAME}' не существует. Проверьте настройки подключения.")
+            # Если база данных не существует, пытаемся создать её
+            logger.warning(f"База данных '{config.DB_NAME}' не существует. Попытка создания...")
+            await self._create_database_if_not_exists()
+            # Повторная попытка подключения
+            self.pool = await asyncpg.create_pool(
+                host=config.DB_HOST,
+                port=config.DB_PORT,
+                database=config.DB_NAME,
+                user=config.DB_USER,
+                password=config.DB_PASSWORD,
+                min_size=1,
+                max_size=10,
+                command_timeout=60,
+                server_settings={
+                    'application_name': 'painter_bot',
+                    'jit': 'off',
+                },
+                setup=self._setup_connection,
+                init=self._init_connection,
+                timeout=30,
+                max_queries=50000,
+                max_inactive_connection_lifetime=300,
+            )
         except asyncpg.exceptions.ConnectionDoesNotExistError:
             raise Exception(f"Не удается подключиться к серверу базы данных {config.DB_HOST}:{config.DB_PORT}")
         except Exception as e:
             raise Exception(f"Ошибка подключения к базе данных: {e}")
+
+    async def _create_database_if_not_exists(self):
+        """Создает базу данных если она не существует"""
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                # Подключаемся к базе данных postgres для создания новой БД
+                conn = await asyncpg.connect(
+                    host=config.DB_HOST,
+                    port=config.DB_PORT,
+                    database='postgres',  # Подключаемся к стандартной БД
+                    user=config.DB_USER,
+                    password=config.DB_PASSWORD,
+                    timeout=30
+                )
+                
+                # Проверяем, существует ли база данных
+                exists = await conn.fetchval(
+                    "SELECT 1 FROM pg_database WHERE datname = $1", config.DB_NAME
+                )
+                
+                if not exists:
+                    logger.info(f"Создание базы данных '{config.DB_NAME}'...")
+                    await conn.execute(f'CREATE DATABASE "{config.DB_NAME}"')
+                    logger.info(f"✅ База данных '{config.DB_NAME}' создана успешно")
+                else:
+                    logger.info(f"✅ База данных '{config.DB_NAME}' уже существует")
+                
+                await conn.close()
+                return  # Успешно создали или нашли БД
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Попытка {attempt + 1}/{max_retries} создания БД неудачна: {e}")
+                if attempt < max_retries - 1:
+                    logger.info(f"⏳ Повторная попытка через {retry_delay} секунд...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Увеличиваем задержку
+                else:
+                    logger.error(f"❌ Не удалось создать базу данных после всех попыток")
+                    raise Exception(f"Не удалось создать базу данных '{config.DB_NAME}': {e}")
 
     async def _setup_connection(self, conn):
         """Настройка соединения"""
@@ -66,16 +133,20 @@ class Database:
                 await conn.fetchval("SELECT 1")
                 return True
         except Exception as e:
-            print(f"Health check failed: {e}")
+            logger.error(f"Health check failed: {e}")
             return False
 
     async def reconnect(self):
         """Переподключается к базе данных"""
-        print("Attempting to reconnect to database...")
+        logger.info("Attempting to reconnect to database...")
         await self.close_pool()
-        await self.create_pool()
-        await self.init_tables()
-        print("Database reconnected successfully")
+        try:
+            await self.create_pool()
+            await self.init_tables()
+            logger.info("Database reconnected successfully")
+        except Exception as e:
+            logger.error(f"Failed to reconnect: {e}")
+            raise
 
     async def _execute_with_retry(self, operation, *args, **kwargs):
         """Выполняет операцию с автоматическим переподключением при ошибке"""
@@ -87,7 +158,7 @@ class Database:
                     asyncpg.exceptions.TooManyConnectionsError,
                     asyncpg.exceptions.ConnectionFailure) as e:
                 if attempt < max_retries - 1:
-                    print(f"Database connection error (attempt {attempt + 1}/{max_retries}): {e}")
+                    logger.warning(f"Database connection error (attempt {attempt + 1}/{max_retries}): {e}")
                     await self.reconnect()
                     await asyncio.sleep(1)  # Небольшая задержка перед повторной попыткой
                 else:
@@ -98,9 +169,10 @@ class Database:
 
     async def init_tables(self):
         """Создает таблицы в базе данных"""
-        async with self.pool.acquire() as conn:
-            # Таблица пользователей
-            await conn.execute("""
+        try:
+            async with self.pool.acquire() as conn:
+                # Таблица пользователей
+                await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     tg_id BIGINT UNIQUE NOT NULL,
@@ -162,10 +234,14 @@ class Database:
                 # Игнорируем ошибки, если колонки уже существуют
                 pass
             
-            # Индексы для оптимизации
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
-            await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)")
+                # Индексы для оптимизации
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)")
+                
+        except Exception as e:
+            logger.error(f"Ошибка инициализации таблиц: {e}")
+            raise Exception(f"Не удалось инициализировать таблицы: {e}")
 
     async def get_or_create_user(self, tg_id: int, name: str, profession: str = None) -> int:
         """Получает или создает пользователя, возвращает user_id"""

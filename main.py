@@ -8,6 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import config
 from db import db
 from handlers import order_handlers, admin_handlers, edit_handlers
+from middleware import DatabaseMiddleware
 
 # Настройка логирования
 logging.basicConfig(
@@ -16,16 +17,40 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Глобальная переменная для отслеживания состояния БД
+db_available = False
+
+def is_database_available():
+    """Проверяет доступность базы данных"""
+    return db_available
+
 async def health_check_task():
     """Задача для периодической проверки состояния базы данных"""
+    global db_available
     while True:
         try:
             await asyncio.sleep(300)  # Проверяем каждые 5 минут
             if not await db.health_check():
                 logger.warning("⚠️ База данных недоступна, попытка переподключения...")
-                await db.reconnect()
+                try:
+                    await db.reconnect()
+                    db_available = True
+                    logger.info("✅ База данных восстановлена")
+                except Exception as reconnect_error:
+                    logger.error(f"❌ Не удалось переподключиться к БД: {reconnect_error}")
+                    db_available = False
+                    # Если база данных не существует, не пытаемся переподключиться
+                    if "не существует" in str(reconnect_error) or "does not exist" in str(reconnect_error):
+                        logger.error("❌ База данных не существует. Требуется ручное вмешательство.")
+                        await asyncio.sleep(600)  # Ждем 10 минут перед следующей попыткой
+            else:
+                if not db_available:
+                    db_available = True
+                    logger.info("✅ База данных снова доступна")
         except Exception as e:
             logger.error(f"❌ Ошибка в health check: {e}")
+            db_available = False
+            await asyncio.sleep(60)  # Ждем минуту при ошибке
 
 async def graceful_shutdown(signum, frame):
     """Обработчик для корректного завершения работы"""
@@ -59,10 +84,17 @@ async def main():
     bot = Bot(token=config.BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     
+    # Добавляем middleware для проверки БД
+    dp.message.middleware(DatabaseMiddleware())
+    dp.callback_query.middleware(DatabaseMiddleware())
+    
     # Регистрируем роутеры
     dp.include_router(order_handlers.router)
     dp.include_router(admin_handlers.router)
     dp.include_router(edit_handlers.router)
+    
+    # Обновляем глобальную переменную состояния БД
+    global db_available
     
     try:
         # Подключаемся к базе данных с повторными попытками
@@ -74,16 +106,25 @@ async def main():
             try:
                 await db.create_pool()
                 await db.init_tables()
+                db_available = True
                 logger.info("✅ База данных успешно инициализирована")
                 break
             except Exception as db_error:
                 logger.warning(f"⚠️  Попытка {attempt + 1}/{max_retries} подключения к БД неудачна: {db_error}")
+                
+                # Если это ошибка отсутствия БД, увеличиваем задержку
+                if "не существует" in str(db_error) or "does not exist" in str(db_error):
+                    retry_delay = 10  # Больше времени для создания БД
+                    logger.info("🔄 Обнаружена проблема с базой данных, увеличиваем время ожидания...")
+                
                 if attempt < max_retries - 1:
                     logger.info(f"⏳ Повторная попытка через {retry_delay} секунд...")
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.error("❌ Не удалось подключиться к базе данных после всех попыток")
-                    raise db_error
+                    logger.warning("⚠️ Бот запускается в режиме без базы данных")
+                    logger.info("💡 Попробуйте: docker-compose restart")
+                    db_available = False
         
         # Запускаем задачу мониторинга базы данных
         health_task = asyncio.create_task(health_check_task())
