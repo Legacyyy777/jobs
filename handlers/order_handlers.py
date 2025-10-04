@@ -419,10 +419,10 @@ async def process_order_number(message: Message, state: FSMContext):
         await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
         return
     
-    # Проверяем, не существует ли уже такой номер заказа
-    if await db.check_order_number_exists(order_number):
+    # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
+    if await db.check_order_number_exists(order_number, user_profession):
         await message.answer(
-            f"⚠️ <b>Заказ с номером '{order_number}' уже существует!</b>\n\n"
+            f"⚠️ <b>Заказ с номером '{order_number}' уже существует среди {user_profession}ов!</b>\n\n"
             f"Что вы хотите сделать?",
             parse_mode="HTML",
             reply_markup=get_order_exists_keyboard(order_number)
@@ -693,7 +693,6 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
-            profession=data.get("profession", "painter"),
             set_type=data["set_type"],
             size=data.get("size"),
             alumochrome=data.get("alumochrome", False),
@@ -829,7 +828,6 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
         order_id = await db.create_order(
             order_number=data["order_number"],
             user_id=user_id,
-            profession=data.get("profession", "painter"),
             set_type=data["set_type"],
             size=data.get("size"),
             alumochrome=data.get("alumochrome", False),

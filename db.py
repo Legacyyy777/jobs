@@ -50,13 +50,12 @@ class Database:
                 )
             """)
             
-            # Таблица заказов
+            # Таблица заказов (универсальная для всех профессий)
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS orders (
                     id SERIAL PRIMARY KEY,
                     order_number VARCHAR(50) UNIQUE NOT NULL,
                     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-                    profession VARCHAR(20) NOT NULL, -- 'painter' или 'sandblaster'
                     set_type VARCHAR(20) NOT NULL, -- 'single', 'set', 'nakidka', 'suspensia'
                     size VARCHAR(10), -- 'R15', 'R16', 'R17' (NULL для насадок и суспортов)
                     alumochrome BOOLEAN DEFAULT FALSE,
@@ -79,14 +78,17 @@ class Database:
                 await conn.execute("UPDATE users SET profession = 'painter' WHERE profession IS NULL")
                 
                 # Миграция для таблицы заказов
-                await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_deep INTEGER DEFAULT 0")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_shallow INTEGER DEFAULT 0")
                 await conn.execute("ALTER TABLE orders ALTER COLUMN size DROP NOT NULL")
-                # Обновляем существующие записи с профессией по умолчанию
-                await conn.execute("UPDATE orders SET profession = 'painter' WHERE profession IS NULL")
+                
+                # Удаляем поле profession из таблицы orders, если оно существует
+                try:
+                    await conn.execute("ALTER TABLE orders DROP COLUMN IF EXISTS profession")
+                except Exception:
+                    pass  # Игнорируем ошибку, если колонка не существует
             except Exception as e:
                 # Игнорируем ошибки, если колонки уже существуют
                 pass
@@ -131,16 +133,16 @@ class Database:
             )
             return user['profession'] if user else None
 
-    async def create_order(self, order_number: str, user_id: int, profession: str, set_type: str, 
+    async def create_order(self, order_number: str, user_id: int, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 
                           photo_file_id: str = None, suspensia_type: str = None, quantity: int = 1,
                           spraying_deep: int = 0, spraying_shallow: int = 0) -> int:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, profession, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
-            """, order_number, user_id, profession, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
+                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
+            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow)
             return order_id
 
     async def update_order_status(self, order_id: int, status: str):
@@ -194,12 +196,21 @@ class Database:
             )
             return result or 0
 
-    async def check_order_number_exists(self, order_number: str) -> bool:
-        """Проверяет, существует ли номер заказа"""
+    async def check_order_number_exists(self, order_number: str, user_profession: str = None) -> bool:
+        """Проверяет, существует ли заказ с таким номером для определенной профессии"""
         async with self.pool.acquire() as conn:
-            result = await conn.fetchval(
-                "SELECT EXISTS(SELECT 1 FROM orders WHERE order_number = $1)", order_number
-            )
+            if user_profession:
+                # Проверяем только среди пользователей с той же профессией
+                result = await conn.fetchval("""
+                    SELECT EXISTS(SELECT 1 FROM orders o 
+                    JOIN users u ON o.user_id = u.id 
+                    WHERE o.order_number = $1 AND u.profession = $2)
+                """, order_number, user_profession)
+            else:
+                # Проверяем среди всех заказов (для обратной совместимости)
+                result = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM orders WHERE order_number = $1)", order_number
+                )
             return result or False
 
     async def delete_order_by_number(self, order_number: str) -> bool:
@@ -214,9 +225,10 @@ class Database:
         """Получает заказы пользователя"""
         async with self.pool.acquire() as conn:
             orders = await conn.fetch("""
-                SELECT * FROM orders 
-                WHERE user_id = $1 
-                ORDER BY created_at DESC 
+                SELECT o.*, u.profession FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.user_id = $1 
+                ORDER BY o.created_at DESC 
                 LIMIT $2
             """, user_id, limit)
             return [dict(order) for order in orders]
