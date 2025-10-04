@@ -563,7 +563,7 @@ async def process_spraying(callback: CallbackQuery, state: FSMContext):
         return
     else:
         # Есть напыление - спрашиваем количество глубоких
-        text = "💨 <b>Напыление</b>\n\nСколько было глубоких напылений?\n(Введите 0, если не было)"
+        text = "💨 <b>Напыление</b>\n\nСколько было <b>глубоких</b> напылений?\n(Введите 0, если не было)"
         keyboard = get_cancel_keyboard()
         
         await safe_edit_message(callback, text, keyboard)
@@ -587,7 +587,7 @@ async def process_deep_spraying(message: Message, state: FSMContext):
         
         await state.update_data(spraying_deep=deep_count)
         
-        text = "💨 <b>Напыление</b>\n\nСколько было неглубоких напылений?\n(Введите 0, если не было)"
+        text = "💨 <b>Напыление</b>\n\nСколько было <b>неглубоких</b> напылений?\n(Введите 0, если не было)"
         keyboard = get_cancel_keyboard()
         
         await message.answer(text, reply_markup=keyboard)
