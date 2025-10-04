@@ -423,6 +423,17 @@ async def process_order_number(message: Message, state: FSMContext):
         await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
         return
     
+    # Получаем профессию пользователя из базы данных
+    user_profession = await db.get_user_profession(message.from_user.id)
+    
+    if user_profession is None:
+        # Пользователь не выбрал профессию, перенаправляем на выбор
+        text = "🎯 <b>Выберите вашу профессию:</b>"
+        keyboard = get_profession_keyboard()
+        await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+        await state.set_state(UserStates.waiting_for_profession)
+        return
+    
     # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
     if await db.check_order_number_exists(order_number, user_profession):
         await message.answer(
@@ -430,16 +441,6 @@ async def process_order_number(message: Message, state: FSMContext):
             f"Что вы хотите сделать?",
             parse_mode="HTML",
             reply_markup=get_order_exists_keyboard(order_number)
-        )
-        return
-    
-    # Получаем профессию пользователя из базы данных
-    user_profession = await db.get_user_profession(message.from_user.id)
-    
-    if user_profession is None:
-        await message.answer(
-            "❌ <b>Ошибка!</b>\n\nСначала выберите вашу профессию. Нажмите /start",
-            parse_mode="HTML"
         )
         return
     
