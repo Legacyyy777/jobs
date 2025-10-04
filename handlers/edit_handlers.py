@@ -45,25 +45,85 @@ async def safe_edit_message(callback: CallbackQuery, text: str, keyboard: Inline
     # Если содержимое не изменилось, ничего не делаем
 
 def format_order_info(order: dict) -> str:
-    """Форматирует информацию о заказе"""
-    set_type_text = "один диск" if order['set_type'] == 'single' else 'комплект'
-    alumochrome_text = "Да" if order['alumochrome'] else "Нет"
+    """Форматирует информацию о заказе с учетом профессии"""
+    profession = order.get('profession', 'painter')
+    
+    # Определяем тип заказа
+    if order['set_type'] == 'single':
+        set_type_text = "один диск"
+    elif order['set_type'] == 'set':
+        set_type_text = "комплект"
+    elif order['set_type'] == 'nakidka':
+        set_type_text = "насадки"
+    elif order['set_type'] == 'suspensia':
+        set_type_text = "супорта"
+    else:
+        set_type_text = order['set_type']
+    
     status_emoji = {
         'draft': '📝',
         'confirmed': '✅',
         'rejected': '❌'
     }
     
-    return (
+    # Базовая информация
+    text = (
         f"🆔 <b>ID:</b> {order['id']}\n"
         f"📋 <b>Номер:</b> {order['order_number']}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
-        f"📏 <b>Размер:</b> {order['size']}\n"
-        f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
+    )
+    
+    # Добавляем размер только для дисков
+    if order['set_type'] in ['single', 'set'] and order['size']:
+        text += f"📏 <b>Размер:</b> {order['size']}\n"
+    
+    # Добавляем информацию в зависимости от профессии
+    if profession == "painter":
+        # Для маляра показываем алюмохром (только для дисков)
+        if order['set_type'] in ['single', 'set']:
+            alumochrome_text = "Да" if order['alumochrome'] else "Нет"
+            text += f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
+        
+        # Для супортов маляра показываем тип
+        elif order['set_type'] == 'suspensia':
+            suspensia_type = order.get('suspensia_type', 'paint')
+            if suspensia_type == 'logo':
+                text += f"🎨 <b>Тип:</b> с логотипом\n"
+            else:
+                text += f"🎨 <b>Тип:</b> покраска\n"
+            
+            quantity = order.get('quantity', 1)
+            if quantity > 1:
+                text += f"🔢 <b>Количество:</b> {quantity} шт.\n"
+    
+    else:  # sandblaster
+        # Для пескоструйщика показываем напыление (только для дисков)
+        if order['set_type'] in ['single', 'set']:
+            spraying_deep = order.get('spraying_deep', 0)
+            spraying_shallow = order.get('spraying_shallow', 0)
+            
+            if spraying_deep > 0 or spraying_shallow > 0:
+                text += f"💨 <b>Напыление:</b>"
+                if spraying_deep > 0:
+                    text += f" глубоких: {spraying_deep}"
+                if spraying_shallow > 0:
+                    text += f" неглубоких: {spraying_shallow}"
+                text += "\n"
+        
+        # Для супортов пескоструйщика показываем количество
+        elif order['set_type'] == 'suspensia':
+            quantity = order.get('quantity', 1)
+            if quantity > 1:
+                text += f"🔢 <b>Количество:</b> {quantity} шт.\n"
+    
+    # Завершаем информацию
+    text += (
         f"💰 <b>Цена:</b> {order['price']:,} руб.\n"
         f"{status_emoji.get(order['status'], '❓')} <b>Статус:</b> {order['status']}\n"
         f"📅 <b>Создан:</b> {order['created_at'].strftime('%d.%m.%Y %H:%M')}"
     )
+    
+    return text
 
 @router.callback_query(F.data == "edit_orders")
 async def show_edit_orders_menu(callback: CallbackQuery, state: FSMContext):
