@@ -98,26 +98,33 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)")
 
-    async def get_or_create_user(self, tg_id: int, name: str, profession: str = "painter") -> int:
+    async def get_or_create_user(self, tg_id: int, name: str, profession: str = None) -> int:
         """Получает или создает пользователя, возвращает user_id"""
         async with self.pool.acquire() as conn:
             # Пытаемся найти существующего пользователя
             user = await conn.fetchrow(
-                "SELECT id FROM users WHERE tg_id = $1", tg_id
+                "SELECT id, profession FROM users WHERE tg_id = $1", tg_id
             )
             
             if user:
-                # Обновляем профессию существующего пользователя
-                await conn.execute(
-                    "UPDATE users SET profession = $1, name = $2 WHERE tg_id = $3",
-                    profession, name, tg_id
-                )
+                # Обновляем только имя, профессию только если она передана явно
+                if profession:
+                    await conn.execute(
+                        "UPDATE users SET profession = $1, name = $2 WHERE tg_id = $3",
+                        profession, name, tg_id
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE users SET name = $1 WHERE tg_id = $2",
+                        name, tg_id
+                    )
                 return user['id']
             
-            # Создаем нового пользователя
+            # Создаем нового пользователя с профессией по умолчанию
+            default_profession = profession or "painter"
             user_id = await conn.fetchval(
                 "INSERT INTO users (tg_id, name, profession) VALUES ($1, $2, $3) RETURNING id",
-                tg_id, name, profession
+                tg_id, name, default_profession
             )
             return user_id
     
@@ -227,15 +234,24 @@ class Database:
             return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
 
     async def get_user_orders(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
-        """Получает заказы пользователя"""
+        """Получает заказы пользователя с той же профессией"""
         async with self.pool.acquire() as conn:
+            # Сначала получаем профессию пользователя
+            user_profession = await conn.fetchval(
+                "SELECT profession FROM users WHERE id = $1", user_id
+            )
+            
+            if not user_profession:
+                return []
+            
+            # Получаем заказы только пользователей с той же профессией
             orders = await conn.fetch("""
                 SELECT o.*, u.profession FROM orders o
                 JOIN users u ON o.user_id = u.id
-                WHERE o.user_id = $1 
+                WHERE u.profession = $1
                 ORDER BY o.created_at DESC 
                 LIMIT $2
-            """, user_id, limit)
+            """, user_profession, limit)
             return [dict(order) for order in orders]
 
     async def get_order_by_number(self, order_number: str) -> Optional[Dict[str, Any]]:

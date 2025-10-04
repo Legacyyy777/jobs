@@ -682,8 +682,7 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
     # Создаем заказ в базе данных
     user_id = await db.get_or_create_user(
         message.from_user.id,
-        message.from_user.full_name or message.from_user.username or "Unknown",
-        user_profession or "painter"
+        message.from_user.full_name or message.from_user.username or "Unknown"
     )
     
     # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
@@ -826,8 +825,7 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
     # Создаем заказ в базе данных
     user_id = await db.get_or_create_user(
         callback.from_user.id,
-        callback.from_user.full_name or callback.from_user.username or "Unknown",
-        user_profession or "painter"
+        callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
     # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
