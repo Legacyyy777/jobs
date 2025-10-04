@@ -107,6 +107,11 @@ class Database:
             )
             
             if user:
+                # Обновляем профессию существующего пользователя
+                await conn.execute(
+                    "UPDATE users SET profession = $1, name = $2 WHERE tg_id = $3",
+                    profession, name, tg_id
+                )
                 return user['id']
             
             # Создаем нового пользователя

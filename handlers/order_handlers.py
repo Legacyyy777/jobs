@@ -242,10 +242,7 @@ async def process_profession_selection(callback: CallbackQuery, state: FSMContex
     """Обработка выбора профессии при первом входе"""
     profession = callback.data.split("_")[1]  # painter или sandblaster
     
-    # Обновляем профессию пользователя в базе данных
-    await db.update_user_profession(callback.from_user.id, profession)
-    
-    # Создаем или обновляем пользователя
+    # Создаем или обновляем пользователя (включая профессию)
     await db.get_or_create_user(
         callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown",
