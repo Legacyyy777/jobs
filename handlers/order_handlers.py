@@ -739,11 +739,18 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
         set_type_text = get_set_type_text(data["set_type"], data)
         price = data["price"]
         
+        # Определяем сообщение в зависимости от профессии
+        profession = data.get("profession", "painter")
+        if profession == "sandblaster":
+            status_message = "✅ Заказ выполнен и готов к работе!"
+        else:
+            status_message = "Заказ отправлен на рассмотрение администратору."
+        
         text = (f"✅ <b>Заказ сформирован!</b>\n\n"
                 f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
                 f"🔹 <b>Тип:</b> {set_type_text}\n"
                 f"💰 <b>Цена:</b> {price:,} руб.\n\n"
-                f"Заказ отправлен на рассмотрение администратору.")
+                f"{status_message}")
         
         await message.answer(text, parse_mode="HTML", reply_markup=get_back_to_menu_keyboard())
         
@@ -887,11 +894,18 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
         set_type_text = get_set_type_text(data["set_type"], data)
         price = data["price"]
         
+        # Определяем сообщение в зависимости от профессии
+        profession = data.get("profession", "painter")
+        if profession == "sandblaster":
+            status_message = "✅ Заказ выполнен и готов к работе!"
+        else:
+            status_message = "Заказ отправлен на рассмотрение администратору."
+        
         text = (f"✅ <b>Заказ сформирован!</b>\n\n"
                 f"📋 <b>Номер заказа:</b> {data['order_number']}\n"
                 f"🔹 <b>Тип:</b> {set_type_text}\n"
                 f"💰 <b>Цена:</b> {price:,} руб.\n\n"
-                f"Заказ отправлен на рассмотрение администратору.")
+                f"{status_message}")
         
         await safe_edit_message(callback, text, get_back_to_menu_keyboard())
         
