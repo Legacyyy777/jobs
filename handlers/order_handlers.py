@@ -676,16 +676,20 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
     """Создает заказ из данных состояния для сообщений"""
     data = await state.get_data()
     
+    # Получаем профессию пользователя
+    user_profession = await db.get_user_profession(message.from_user.id)
+    
     # Создаем заказ в базе данных
     user_id = await db.get_or_create_user(
         message.from_user.id,
-        message.from_user.full_name or message.from_user.username or "Unknown"
+        message.from_user.full_name or message.from_user.username or "Unknown",
+        user_profession or "painter"
     )
     
-    # Проверяем, не существует ли уже такой номер заказа
-    if await db.check_order_number_exists(data["order_number"]):
+    # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
+    if await db.check_order_number_exists(data["order_number"], user_profession):
         await message.answer(
-            f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует!</b>\n\nЧто вы хотите сделать?",
+            f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует среди {user_profession}ов!</b>\n\nЧто вы хотите сделать?",
             parse_mode="HTML",
             reply_markup=get_order_exists_keyboard(data["order_number"])
         )
@@ -816,15 +820,19 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
     """Создает заказ из данных состояния"""
     data = await state.get_data()
     
+    # Получаем профессию пользователя
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
     # Создаем заказ в базе данных
     user_id = await db.get_or_create_user(
         callback.from_user.id,
-        callback.from_user.full_name or callback.from_user.username or "Unknown"
+        callback.from_user.full_name or callback.from_user.username or "Unknown",
+        user_profession or "painter"
     )
     
-    # Проверяем, не существует ли уже такой номер заказа
-    if await db.check_order_number_exists(data["order_number"]):
-        text = f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует!</b>\n\nЧто вы хотите сделать?"
+    # Проверяем, не существует ли уже такой номер заказа среди пользователей той же профессии
+    if await db.check_order_number_exists(data["order_number"], user_profession):
+        text = f"⚠️ <b>Заказ с номером '{data['order_number']}' уже существует среди {user_profession}ов!</b>\n\nЧто вы хотите сделать?"
         keyboard = get_order_exists_keyboard(data["order_number"])
         
         await safe_edit_message(callback, text, keyboard)
