@@ -1,8 +1,11 @@
 from aiogram.fsm.state import State, StatesGroup
 
+class UserStates(StatesGroup):
+    """Состояния для FSM пользователя"""
+    waiting_for_profession = State()
+
 class OrderStates(StatesGroup):
     """Состояния для FSM заказа"""
-    waiting_for_profession = State()
     waiting_for_photo = State()
     waiting_for_order_number = State()
     waiting_for_set_type = State()

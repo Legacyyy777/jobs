@@ -45,6 +45,7 @@ class Database:
                     id SERIAL PRIMARY KEY,
                     tg_id BIGINT UNIQUE NOT NULL,
                     name VARCHAR(255) NOT NULL,
+                    profession VARCHAR(20) DEFAULT 'painter', -- 'painter' или 'sandblaster'
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -73,6 +74,11 @@ class Database:
             
             # Миграция для добавления новых полей
             try:
+                # Миграция для таблицы пользователей
+                await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
+                await conn.execute("UPDATE users SET profession = 'painter' WHERE profession IS NULL")
+                
+                # Миграция для таблицы заказов
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
                 await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1")
@@ -90,7 +96,7 @@ class Database:
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)")
 
-    async def get_or_create_user(self, tg_id: int, name: str) -> int:
+    async def get_or_create_user(self, tg_id: int, name: str, profession: str = "painter") -> int:
         """Получает или создает пользователя, возвращает user_id"""
         async with self.pool.acquire() as conn:
             # Пытаемся найти существующего пользователя
@@ -103,10 +109,27 @@ class Database:
             
             # Создаем нового пользователя
             user_id = await conn.fetchval(
-                "INSERT INTO users (tg_id, name) VALUES ($1, $2) RETURNING id",
-                tg_id, name
+                "INSERT INTO users (tg_id, name, profession) VALUES ($1, $2, $3) RETURNING id",
+                tg_id, name, profession
             )
             return user_id
+    
+    async def update_user_profession(self, tg_id: int, profession: str):
+        """Обновляет профессию пользователя"""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET profession = $1 WHERE tg_id = $2",
+                profession, tg_id
+            )
+    
+    async def get_user_profession(self, tg_id: int) -> str:
+        """Получает профессию пользователя"""
+        async with self.pool.acquire() as conn:
+            profession = await conn.fetchval(
+                "SELECT profession FROM users WHERE tg_id = $1",
+                tg_id
+            )
+            return profession or "painter"
 
     async def create_order(self, order_number: str, user_id: int, profession: str, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 

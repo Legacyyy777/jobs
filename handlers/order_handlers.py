@@ -6,7 +6,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 
-from handlers.fsm import OrderStates
+from handlers.fsm import OrderStates, UserStates
 from keyboards import (
     get_main_menu_keyboard,
     get_set_type_keyboard, 
@@ -211,25 +211,67 @@ async def cmd_start(message: Message, state: FSMContext):
     
     await state.clear()
     
-    # Регистрируем пользователя в базе данных
-    user_id = await db.get_or_create_user(
-        message.from_user.id, 
-        message.from_user.full_name or message.from_user.username or "Unknown"
+    # Проверяем, есть ли уже профессия у пользователя
+    user_profession = await db.get_user_profession(message.from_user.id)
+    
+    if user_profession:
+        # Пользователь уже выбрал профессию, показываем главное меню
+        if user_profession == "painter":
+            text = "👋 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
+        else:
+            text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
+        
+        keyboard = get_main_menu_keyboard()
+        
+        await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+    else:
+        # Пользователь еще не выбрал профессию
+        text = "👨‍🎨 <b>Добро пожаловать!</b>\n\nВыберите вашу профессию:"
+        keyboard = get_profession_keyboard()
+        
+        await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
+        await state.set_state(UserStates.waiting_for_profession)
+
+@router.callback_query(F.data.startswith("profession_"), StateFilter(UserStates.waiting_for_profession))
+async def process_profession_selection(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора профессии при первом входе"""
+    profession = callback.data.split("_")[1]  # painter или sandblaster
+    
+    # Обновляем профессию пользователя в базе данных
+    await db.update_user_profession(callback.from_user.id, profession)
+    
+    # Создаем или обновляем пользователя
+    await db.get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.full_name or callback.from_user.username or "Unknown",
+        profession
     )
     
-    await message.answer(
-        "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
-        "Выберите действие:",
-        parse_mode="HTML",
-        reply_markup=get_main_menu_keyboard()
-    )
+    # Показываем соответствующее приветствие
+    if profession == "painter":
+        text = "👋 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
+    else:
+        text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
+    
+    keyboard = get_main_menu_keyboard()
+    
+    await safe_edit_message(callback, text, keyboard)
+    await state.clear()
+    await callback.answer()
 
 @router.callback_query(F.data == "main_menu")
 async def show_main_menu(callback: CallbackQuery, state: FSMContext):
     """Показать главное меню"""
     await state.clear()
     
-    text = "🎨 <b>Главное меню</b>\n\nВыберите действие:"
+    # Получаем профессию пользователя
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    if user_profession == "painter":
+        text = "👋 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
+    else:
+        text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
+    
     keyboard = get_main_menu_keyboard()
     
     await safe_edit_message(callback, text, keyboard)
@@ -239,21 +281,10 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "create_order")
 async def start_create_order(callback: CallbackQuery, state: FSMContext):
     """Начать создание заказа"""
-    text = "👨‍🎨 <b>Выберите профессию:</b>"
-    keyboard = get_profession_keyboard()
+    # Получаем профессию пользователя из базы данных
+    user_profession = await db.get_user_profession(callback.from_user.id)
     
-    await safe_edit_message(callback, text, keyboard)
-    await state.set_state(OrderStates.waiting_for_profession)
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("profession_"), StateFilter(OrderStates.waiting_for_profession))
-async def process_profession(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора профессии"""
-    profession = callback.data.split("_")[1]  # painter или sandblaster
-    
-    await state.update_data(profession=profession)
-    
-    profession_text = "🎨 Маляр" if profession == "painter" else "💨 Пескоструйщик"
+    profession_text = "🎨 Маляр" if user_profession == "painter" else "💨 Пескоструйщик"
     text = f"📸 <b>Создание заказа ({profession_text})</b>\n\nОтправьте фото диска(ов), который нужно покрасить:"
     keyboard = get_cancel_keyboard()
     
@@ -327,7 +358,10 @@ async def process_photo(message: Message, state: FSMContext):
     # Сохраняем file_id самого большого фото
     photo = max(message.photo, key=lambda x: x.file_size)
     
-    await state.update_data(photo_file_id=photo.file_id)
+    # Получаем профессию пользователя из базы данных
+    user_profession = await db.get_user_profession(message.from_user.id)
+    
+    await state.update_data(photo_file_id=photo.file_id, profession=user_profession)
     
     await message.answer(
         "📸 <b>Фото получено!</b>\n\n"
@@ -370,7 +404,10 @@ async def process_order_number(message: Message, state: FSMContext):
         )
         return
     
-    await state.update_data(order_number=order_number)
+    # Получаем профессию пользователя из базы данных
+    user_profession = await db.get_user_profession(message.from_user.id)
+    
+    await state.update_data(order_number=order_number, profession=user_profession)
     
     await message.answer(
         "📋 <b>Номер заказа:</b> {}\n\n"
