@@ -41,6 +41,7 @@ services:
       - PRICE_SINGLE_R21=${PRICE_SINGLE_R21:-1200}
       - PRICE_SINGLE_R22=${PRICE_SINGLE_R22:-1200}
       - PRICE_SINGLE_R23=${PRICE_SINGLE_R23:-1300}
+      - PRICE_SINGLE_R24=${PRICE_SINGLE_R24:-1500}
       # Цены за комплекты
       - PRICE_SET_R13=${PRICE_SET_R13:-700}
       - PRICE_SET_R14=${PRICE_SET_R14:-700}
@@ -53,11 +54,16 @@ services:
       - PRICE_SET_R21=${PRICE_SET_R21:-1800}
       - PRICE_SET_R22=${PRICE_SET_R22:-2000}
       - PRICE_SET_R23=${PRICE_SET_R23:-2200}
+      - PRICE_SET_R24=${PRICE_SET_R24:-2500}
       # Доплата за подготовку
       - PRICE_PREP_SINGLE=${PRICE_PREP_SINGLE:-210}
       - PRICE_PREP_SET=${PRICE_PREP_SET:-300}
       # Доплата за алюмохром
       - PRICE_ALUMOCHROME_EXTRA=${PRICE_ALUMOCHROME_EXTRA:-300}
+      # Цены за новые типы заказов
+      - PRICE_NAKIDKA=${PRICE_NAKIDKA:-300}
+      - PRICE_SUSPENSIA_PAINT=${PRICE_SUSPENSIA_PAINT:-350}
+      - PRICE_SUSPENSIA_LOGO=${PRICE_SUSPENSIA_LOGO:-750}
       - DB_HOST=db
       - DB_PORT=5432
       - DB_NAME=painter_bot

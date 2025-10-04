@@ -47,6 +47,11 @@ class Config:
     # Доплата за алюмохром
     PRICE_ALUMOCHROME_EXTRA = int(os.getenv('PRICE_ALUMOCHROME_EXTRA', 300))
     
+    # Цены за новые типы заказов
+    PRICE_NAKIDKA = int(os.getenv('PRICE_NAKIDKA', 300))  # Покраска насадок
+    PRICE_SUSPENSIA_PAINT = int(os.getenv('PRICE_SUSPENSIA_PAINT', 350))  # Суспорт покраска
+    PRICE_SUSPENSIA_LOGO = int(os.getenv('PRICE_SUSPENSIA_LOGO', 750))  # Суспорт с логотипом
+    
     # Настройки базы данных
     DB_HOST = os.getenv('DB_HOST', 'db')
     DB_PORT = int(os.getenv('DB_PORT', 5432))

@@ -13,11 +13,13 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 def get_set_type_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура для выбора типа заказа (один диск или комплект)"""
+    """Клавиатура для выбора типа заказа"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🔹 Один диск", callback_data="set_type_single"))
     builder.add(InlineKeyboardButton(text="🔹 Комплект", callback_data="set_type_set"))
-    builder.adjust(1)
+    builder.add(InlineKeyboardButton(text="🔸 Насадки", callback_data="set_type_nakidka"))
+    builder.add(InlineKeyboardButton(text="🔸 Суспорты", callback_data="set_type_suspensia"))
+    builder.adjust(2)
     return builder.as_markup()
 
 def get_size_keyboard() -> InlineKeyboardMarkup:
@@ -132,5 +134,13 @@ def get_confirm_delete_keyboard(order_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"confirm_delete_{order_id}"))
     builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data=f"order_actions_{order_id}"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_suspensia_type_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора типа суспортов"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🎨 Покраска (350₽)", callback_data="suspensia_type_paint"))
+    builder.add(InlineKeyboardButton(text="🏷️ С логотипом (750₽)", callback_data="suspensia_type_logo"))
     builder.adjust(1)
     return builder.as_markup()

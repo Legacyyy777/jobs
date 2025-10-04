@@ -7,6 +7,8 @@ class OrderStates(StatesGroup):
     waiting_for_set_type = State()
     waiting_for_size = State()
     waiting_for_alumochrome = State()
+    waiting_for_suspensia_type = State()
+    waiting_for_suspensia_quantity = State()
     order_confirmed = State()
 
 class EditOrderStates(StatesGroup):
