@@ -270,6 +270,10 @@ async def process_non_photo(message: Message):
 @router.message(StateFilter(OrderStates.waiting_for_order_number))
 async def process_order_number(message: Message, state: FSMContext):
     """Обработка номера заказа"""
+    if not message.text:
+        await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
+        return
+    
     order_number = message.text.strip()
     
     if not order_number:
@@ -369,6 +373,10 @@ async def process_suspensia_type(callback: CallbackQuery, state: FSMContext):
 @router.message(StateFilter(OrderStates.waiting_for_suspensia_quantity))
 async def process_suspensia_quantity(message: Message, state: FSMContext):
     """Обработка количества супортов"""
+    if not message.text:
+        await message.answer("❌ Количество не может быть пустым. Попробуйте еще раз:")
+        return
+    
     try:
         quantity = int(message.text.strip())
         

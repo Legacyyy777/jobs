@@ -113,6 +113,10 @@ async def start_find_order(callback: CallbackQuery, state: FSMContext):
 @router.message(StateFilter(EditOrderStates.waiting_for_order_number))
 async def process_find_order_number(message: Message, state: FSMContext):
     """Обработка номера заказа для поиска"""
+    if not message.text:
+        await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
+        return
+    
     order_number = message.text.strip()
     
     if not order_number:
@@ -242,6 +246,10 @@ async def start_change_price(callback: CallbackQuery, state: FSMContext):
 @router.message(StateFilter(EditOrderStates.waiting_for_new_price))
 async def process_change_price(message: Message, state: FSMContext):
     """Обработка изменения цены заказа"""
+    if not message.text:
+        await message.answer("❌ Цена не может быть пустой. Попробуйте еще раз:")
+        return
+    
     data = await state.get_data()
     order_id = data["order_id"]
     
