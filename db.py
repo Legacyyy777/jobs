@@ -1,7 +1,8 @@
 import asyncpg
 import asyncio
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 from typing import Optional, List, Dict, Any
 from config import config
 
@@ -332,27 +333,45 @@ class Database:
             return dict(order) if order else None
 
     async def get_user_earnings_today(self, user_id: int) -> int:
-        """Получает заработок пользователя за сегодня"""
-        today = date.today()
+        """Получает заработок пользователя за сегодня (по часовому поясу Уфы)"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_local = start_local + timedelta(days=1)
+
+        start_utc = start_local.astimezone(ZoneInfo("UTC"))
+        end_utc = end_local.astimezone(ZoneInfo("UTC"))
+
         async with self.pool.acquire() as conn:
             result = await conn.fetchval("""
                 SELECT COALESCE(SUM(price), 0)
                 FROM orders
-                WHERE user_id = $1 AND status = 'confirmed' AND DATE(created_at) = $2
-            """, user_id, today)
+                WHERE user_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+            """, user_id, start_utc, end_utc)
             return result or 0
 
     async def get_user_earnings_month(self, user_id: int) -> int:
-        """Получает заработок пользователя за текущий месяц"""
-        today = date.today()
-        first_day_of_month = today.replace(day=1)
-        
+        """Получает заработок пользователя за текущий месяц (по часовому поясу Уфы)"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+
         async with self.pool.acquire() as conn:
             result = await conn.fetchval("""
                 SELECT COALESCE(SUM(price), 0)
                 FROM orders
-                WHERE user_id = $1 AND status = 'confirmed' AND created_at >= $2
-            """, user_id, first_day_of_month)
+                WHERE user_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+            """, user_id, start_month_utc, end_month_utc)
             return result or 0
 
     async def get_user_orders_count(self, user_id: int) -> int:
