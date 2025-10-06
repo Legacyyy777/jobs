@@ -1,6 +1,7 @@
 import os
 import logging
 from dotenv import load_dotenv
+from typing import List
 
 load_dotenv()
 
@@ -11,6 +12,13 @@ class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', 0))
     MODERATION_CHAT_ID = os.getenv('MODERATION_CHAT_ID')  # ID чата/канала для модерации заказов
+    
+    # Ограничение доступа: список разрешенных user_id сотрудников (через запятую)
+    _ALLOWED_USER_IDS_RAW = os.getenv('ALLOWED_USER_IDS', '').strip()
+    ALLOWED_USER_IDS: List[int] = (
+        [int(x) for x in _ALLOWED_USER_IDS_RAW.split(',') if x.strip().isdigit()]
+        if _ALLOWED_USER_IDS_RAW else []
+    )
     
     # Цены за одиночные диски
     PRICE_SINGLE_R12 = int(os.getenv('PRICE_SINGLE_R12', 150))

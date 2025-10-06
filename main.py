@@ -8,7 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import config
 from db import db
 from handlers import order_handlers, admin_handlers, edit_handlers
-from middleware import DatabaseMiddleware, set_database_available, is_database_available
+from middleware import DatabaseMiddleware, AccessMiddleware, set_database_available, is_database_available
 
 # Настройка логирования
 logging.basicConfig(
@@ -83,7 +83,9 @@ async def main():
     bot = Bot(token=config.BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     
-    # Добавляем middleware для проверки БД
+    # Добавляем middleware: доступ и проверка БД
+    dp.message.middleware(AccessMiddleware())
+    dp.callback_query.middleware(AccessMiddleware())
     dp.message.middleware(DatabaseMiddleware())
     dp.callback_query.middleware(DatabaseMiddleware())
     
