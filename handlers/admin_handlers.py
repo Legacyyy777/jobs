@@ -12,11 +12,15 @@ router = Router()
 async def is_moderator(user_id: int, chat_id: int, bot) -> bool:
     """Проверяет, является ли пользователь модератором в чате"""
     try:
-        # Проверяем, является ли пользователь администратором бота
+        # Проверяем, является ли пользователь главным администратором бота
         if user_id == config.ADMIN_CHAT_ID:
             return True
             
-        # Проверяем права в чате модерации
+        # Проверяем, есть ли пользователь в списке модераторов
+        if user_id in config.MODERATORS:
+            return True
+            
+        # Проверяем права в чате модерации (для обратной совместимости)
         if config.MODERATION_CHAT_ID:
             chat_member = await bot.get_chat_member(chat_id, user_id)
             return chat_member.status in ['administrator', 'creator']

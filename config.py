@@ -1,7 +1,7 @@
 import os
 import logging
-from dotenv import load_dotenv
 from typing import List
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -12,6 +12,19 @@ class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', 0))
     MODERATION_CHAT_ID = os.getenv('MODERATION_CHAT_ID')  # ID чата/канала для модерации заказов
+    
+    # Список модераторов из переменной окружения
+    @property
+    def MODERATORS(self):
+        """Возвращает список ID модераторов из переменной окружения"""
+        moderators_str = os.getenv('MODERATORS', '')
+        if not moderators_str:
+            return []
+        try:
+            return [int(mod_id.strip()) for mod_id in moderators_str.split(',') if mod_id.strip()]
+        except ValueError:
+            logging.error(f"Ошибка парсинга MODERATORS: {moderators_str}")
+            return []
     
     # Ограничение доступа: список разрешенных user_id сотрудников (через запятую)
     _ALLOWED_USER_IDS_RAW = os.getenv('ALLOWED_USER_IDS', '').strip()
