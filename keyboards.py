@@ -123,8 +123,17 @@ def get_my_orders_keyboard(orders: list, page: int = 0, total_count: int = 0) ->
     # Кнопка главного меню
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     
-    # Размещаем: заказы по 1 в ряду, навигацию по 2 в ряду (если есть), главное меню по 1 в ряду
-    builder.adjust(1, 2, 1)
+    # Размещаем кнопки: сначала все заказы по 1, потом навигация в ряд, потом главное меню
+    orders_count = len(orders)
+    nav_count = len(nav_buttons)
+    
+    if nav_count > 0:
+        # Заказы по 1, навигация в ряд, главное меню по 1
+        builder.adjust(*([1] * orders_count), nav_count, 1)
+    else:
+        # Только заказы и главное меню
+        builder.adjust(*([1] * orders_count), 1)
+    
     return builder.as_markup()
 
 def get_order_actions_keyboard(order_id: int) -> InlineKeyboardMarkup:
