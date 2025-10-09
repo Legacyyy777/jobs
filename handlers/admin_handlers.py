@@ -74,6 +74,15 @@ async def admin_confirm_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "confirmed")
     
+    # Удаляем сообщение с напоминанием, если оно было отправлено
+    reminder_msg_id = await db.get_reminder_message_id(order['id'])
+    if reminder_msg_id:
+        try:
+            await callback.bot.delete_message(chat_id=config.MODERATION_CHAT_ID, message_id=reminder_msg_id)
+            logging.info(f"🗑️ Удалено напоминание о заказе #{order['order_number']}")
+        except Exception as e:
+            logging.warning(f"Не удалось удалить сообщение с напоминанием: {e}")
+    
     # Получаем username пользователя через API Telegram
     try:
         user_info = await callback.bot.get_chat(order["tg_id"])
@@ -144,6 +153,15 @@ async def admin_reject_order(callback: CallbackQuery):
     
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "rejected")
+    
+    # Удаляем сообщение с напоминанием, если оно было отправлено
+    reminder_msg_id = await db.get_reminder_message_id(order['id'])
+    if reminder_msg_id:
+        try:
+            await callback.bot.delete_message(chat_id=config.MODERATION_CHAT_ID, message_id=reminder_msg_id)
+            logging.info(f"🗑️ Удалено напоминание о заказе #{order['order_number']}")
+        except Exception as e:
+            logging.warning(f"Не удалось удалить сообщение с напоминанием: {e}")
     
     # Получаем username пользователя через API Telegram
     try:

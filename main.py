@@ -19,6 +19,59 @@ logger = logging.getLogger(__name__)
 
 # Используем функции из middleware для управления состоянием БД
 
+async def check_unconfirmed_orders_task(bot):
+    """Задача для проверки неподтвержденных заказов и отправки напоминаний"""
+    while True:
+        try:
+            await asyncio.sleep(300)  # Проверяем каждые 5 минут
+            
+            if not is_database_available():
+                continue
+            
+            # Получаем заказы старше 30 минут без подтверждения
+            unconfirmed_orders = await db.get_unconfirmed_orders_older_than(30)
+            
+            for order in unconfirmed_orders:
+                try:
+                    profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
+                    
+                    # Получаем username пользователя
+                    try:
+                        user_info = await bot.get_chat(order["tg_id"])
+                        username = user_info.username if user_info.username else order['user_name']
+                    except Exception:
+                        username = order['user_name']
+                    
+                    # Отправляем напоминание в чат модерации
+                    reminder_text = (
+                        f"⏰ <b>НАПОМИНАНИЕ</b>\n\n"
+                        f"Заказ ожидает подтверждения более 30 минут!\n"
+                        f"Пожалуйста, не забудьте подтвердить или отклонить заказ."
+                    )
+                    
+                    if config.MODERATION_CHAT_ID:
+                        # Отправляем напоминание без кнопок
+                        reminder_msg = await bot.send_message(
+                            chat_id=config.MODERATION_CHAT_ID,
+                            text=reminder_text,
+                            parse_mode="HTML"
+                        )
+                        
+                        # Сохраняем ID сообщения с напоминанием в базе для последующего удаления
+                        await db.save_reminder_message_id(order['id'], reminder_msg.message_id)
+                        
+                        # Помечаем заказ как напомненный
+                        await db.mark_order_as_reminded(order['id'])
+                        
+                        logger.info(f"⏰ Отправлено напоминание о заказе #{order['order_number']} ({profession_text})")
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка отправки напоминания о заказе {order.get('id')}: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Ошибка в задаче проверки неподтвержденных заказов: {e}")
+            await asyncio.sleep(60)
+
 async def health_check_task():
     """Задача для периодической проверки состояния базы данных"""
     while True:
@@ -135,6 +188,9 @@ async def main():
         # Запускаем задачу мониторинга базы данных
         health_task = asyncio.create_task(health_check_task())
         
+        # Запускаем задачу проверки неподтвержденных заказов
+        reminder_task = asyncio.create_task(check_unconfirmed_orders_task(bot))
+        
         # Запускаем бота
         logger.info("🚀 Запуск бота...")
         await dp.start_polling(bot)
@@ -142,9 +198,11 @@ async def main():
     except Exception as e:
         logger.error(f"❌ Критическая ошибка при запуске бота: {e}")
     finally:
-        # Отменяем задачу мониторинга
+        # Отменяем задачи мониторинга
         if 'health_task' in locals():
             health_task.cancel()
+        if 'reminder_task' in locals():
+            reminder_task.cancel()
         # Закрываем соединения
         logger.info("🔌 Закрытие соединений...")
         await db.close_pool()
