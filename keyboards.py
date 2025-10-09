@@ -120,11 +120,11 @@ def get_my_orders_keyboard(orders: list, page: int = 0, total_count: int = 0) ->
         for btn in nav_buttons:
             builder.add(btn)
     
-    # Кнопки меню
-    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="edit_orders"))
+    # Кнопка главного меню
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     
-    builder.adjust(1, len(nav_buttons) if nav_buttons else 1, 2)
+    # Размещаем: заказы по 1 в ряду, навигацию по 2 в ряду (если есть), главное меню по 1 в ряду
+    builder.adjust(1, 2, 1)
     return builder.as_markup()
 
 def get_order_actions_keyboard(order_id: int) -> InlineKeyboardMarkup:

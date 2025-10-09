@@ -1107,8 +1107,17 @@ async def handle_any_message(message: Message, state: FSMContext):
     if str(message.chat.id) == str(config.MODERATION_CHAT_ID):
         return
     
-    # Если пользователь не в процессе создания заказа, показываем главное меню
+    # Игнорируем состояния редактирования заказов (они обрабатываются в edit_handlers.py)
+    from handlers.fsm import EditOrderStates
     current_state = await state.get_state()
+    
+    # Проверяем, не находимся ли мы в состоянии редактирования заказов
+    if (current_state == EditOrderStates.waiting_for_order_number or 
+        current_state == EditOrderStates.waiting_for_new_price):
+        # Эти состояния обрабатываются в edit_handlers.py, пропускаем
+        return
+    
+    # Если пользователь не в процессе создания заказа, показываем главное меню
     if current_state is None:
         # Регистрируем пользователя в базе данных
         user_id = await db.get_or_create_user(
