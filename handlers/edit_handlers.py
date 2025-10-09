@@ -1,5 +1,7 @@
 import logging
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, InlineKeyboardMarkup
 from aiogram.filters import StateFilter
@@ -125,10 +127,21 @@ def format_order_info(order: dict) -> str:
                 text += f"🔢 <b>Количество:</b> {quantity} шт.\n"
     
     # Завершаем информацию
+    # Конвертируем время из UTC в часовой пояс Уфы
+    tz_ufa = ZoneInfo("Asia/Yekaterinburg")
+    created_at_utc = order['created_at']
+    
+    # Если время уже в UTC, конвертируем в Уфу
+    if created_at_utc.tzinfo is None:
+        # Если время naive (без timezone), считаем его UTC
+        created_at_utc = created_at_utc.replace(tzinfo=ZoneInfo("UTC"))
+    
+    created_at_ufa = created_at_utc.astimezone(tz_ufa)
+    
     text += (
         f"💰 <b>Цена:</b> {order['price']:,} руб.\n"
         f"{status_emoji.get(order['status'], '❓')} <b>Статус:</b> {status_text.get(order['status'], order['status'])}\n"
-        f"📅 <b>Создан:</b> {order['created_at'].strftime('%d.%m.%Y %H:%M')}"
+        f"📅 <b>Создан:</b> {created_at_ufa.strftime('%d.%m.%Y %H:%M')}"
     )
     
     return text

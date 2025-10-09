@@ -89,10 +89,11 @@ async def main():
     dp.message.middleware(DatabaseMiddleware())
     dp.callback_query.middleware(DatabaseMiddleware())
     
-    # Регистрируем роутеры
-    dp.include_router(order_handlers.router)
-    dp.include_router(admin_handlers.router)
+    # Регистрируем роутеры (порядок важен!)
+    # edit_handlers должен быть первым, чтобы обработать состояния поиска заказа
     dp.include_router(edit_handlers.router)
+    dp.include_router(admin_handlers.router)
+    dp.include_router(order_handlers.router)
     
     # Инициализируем состояние БД как недоступную
     set_database_available(False)
