@@ -453,6 +453,17 @@ class Database:
             """, order_number, profession)
             return dict(order) if order else None
     
+    async def get_user_order_by_number(self, user_id: int, order_number: str) -> Optional[Dict[str, Any]]:
+        """Получает заказ пользователя по номеру"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT o.*, u.profession
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.order_number = $1 AND o.user_id = $2
+            """, order_number, user_id)
+            return dict(order) if order else None
+    
     async def get_order_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:
         """Получает заказ по ID"""
         async with self.pool.acquire() as conn:
@@ -488,6 +499,26 @@ class Database:
                 WHERE id = $1 AND user_id = $2
             """, order_id, user_id)
             return dict(order) if order else None
+    
+    async def get_user_orders_paginated(self, user_id: int, limit: int = 5, offset: int = 0) -> List[Dict[str, Any]]:
+        """Получает заказы пользователя с пагинацией"""
+        async with self.pool.acquire() as conn:
+            orders = await conn.fetch("""
+                SELECT o.*, u.profession FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.user_id = $1
+                ORDER BY o.created_at DESC 
+                LIMIT $2 OFFSET $3
+            """, user_id, limit, offset)
+            return [dict(order) for order in orders]
+
+    async def get_user_orders_total_count(self, user_id: int) -> int:
+        """Получает общее количество заказов пользователя"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1", user_id
+            )
+            return result or 0
 
 # Глобальный экземпляр базы данных
 db = Database()

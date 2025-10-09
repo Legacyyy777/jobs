@@ -57,6 +57,8 @@ def format_order_info(order: dict) -> str:
         set_type_text = "насадки"
     elif order['set_type'] == 'suspensia':
         set_type_text = "супорта"
+    elif order['set_type'] == 'free':
+        set_type_text = "свободный заказ"
     else:
         set_type_text = order['set_type']
     
@@ -143,25 +145,55 @@ async def show_edit_orders_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @router.callback_query(F.data == "my_orders")
-async def show_my_orders(callback: CallbackQuery):
+async def show_my_orders(callback: CallbackQuery, page: int = 0):
     """Показать заказы пользователя"""
     user_id = await db.get_or_create_user(
         callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
-    orders = await db.get_user_orders(user_id, limit=5)
+    # Получаем заказы с пагинацией
+    orders = await db.get_user_orders_paginated(user_id, limit=5, offset=page * 5)
+    total_count = await db.get_user_orders_total_count(user_id)
     
     if not orders:
         text = "📋 <b>Ваши заказы</b>\n\nУ вас пока нет заказов."
         keyboard = get_edit_orders_keyboard()
     else:
-        text = "📋 <b>Ваши последние заказы:</b>\n\n"
+        text = f"📋 <b>Ваши заказы (стр. {page + 1}):</b>\n\n"
         for i, order in enumerate(orders, 1):
             text += f"{i}. {format_order_info(order)}\n\n"
         text = text[:4000]  # Ограничиваем длину сообщения
-        # Создаем клавиатуру с кнопками для каждого заказа
-        keyboard = get_my_orders_keyboard(orders)
+        # Создаем клавиатуру с кнопками для каждого заказа и пагинацией
+        keyboard = get_my_orders_keyboard(orders, page, total_count)
+    
+    await safe_edit_message(callback, text, keyboard)
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("my_orders_page_"))
+async def show_my_orders_page(callback: CallbackQuery):
+    """Показать определенную страницу заказов пользователя"""
+    page = int(callback.data.split("_")[3])  # my_orders_page_{page}
+    
+    user_id = await db.get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.full_name or callback.from_user.username or "Unknown"
+    )
+    
+    # Получаем заказы с пагинацией
+    orders = await db.get_user_orders_paginated(user_id, limit=5, offset=page * 5)
+    total_count = await db.get_user_orders_total_count(user_id)
+    
+    if not orders:
+        text = "📋 <b>Ваши заказы</b>\n\nУ вас пока нет заказов."
+        keyboard = get_edit_orders_keyboard()
+    else:
+        text = f"📋 <b>Ваши заказы (стр. {page + 1}):</b>\n\n"
+        for i, order in enumerate(orders, 1):
+            text += f"{i}. {format_order_info(order)}\n\n"
+        text = text[:4000]  # Ограничиваем длину сообщения
+        # Создаем клавиатуру с кнопками для каждого заказа и пагинацией
+        keyboard = get_my_orders_keyboard(orders, page, total_count)
     
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
@@ -189,29 +221,20 @@ async def process_find_order_number(message: Message, state: FSMContext):
         await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
         return
     
-    # Ищем заказ по номеру
-    order = await db.get_order_by_number(order_number)
-    
-    if not order:
-        await message.answer(
-            f"❌ <b>Заказ не найден!</b>\n\n"
-            f"Заказ с номером '{order_number}' не существует.\n"
-            f"Проверьте правильность номера и попробуйте еще раз.",
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard()
-        )
-        return
-    
-    # Проверяем, что заказ принадлежит пользователю
+    # Получаем user_id пользователя
     user_id = await db.get_or_create_user(
         message.from_user.id,
         message.from_user.full_name or message.from_user.username or "Unknown"
     )
     
-    if order['user_id'] != user_id:
+    # Ищем заказ по номеру только среди заказов этого пользователя
+    order = await db.get_user_order_by_number(user_id, order_number)
+    
+    if not order:
         await message.answer(
-            f"❌ <b>Доступ запрещен!</b>\n\n"
-            f"Заказ с номером '{order_number}' принадлежит другому пользователю.",
+            f"❌ <b>Заказ не найден!</b>\n\n"
+            f"Заказ с номером '{order_number}' не найден среди ваших заказов.\n"
+            f"Проверьте правильность номера и попробуйте еще раз.",
             parse_mode="HTML",
             reply_markup=get_cancel_keyboard()
         )

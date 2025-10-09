@@ -19,6 +19,7 @@ def get_set_type_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(text="🔹 Комплект", callback_data="set_type_set"))
     builder.add(InlineKeyboardButton(text="🔸 Насадки", callback_data="set_type_nakidka"))
     builder.add(InlineKeyboardButton(text="🔸 Супорта", callback_data="set_type_suspensia"))
+    builder.add(InlineKeyboardButton(text="🆓 Свободный заказ", callback_data="set_type_free"))
     builder.adjust(2)
     return builder.as_markup()
 
@@ -97,23 +98,33 @@ def get_edit_orders_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def get_my_orders_keyboard(orders: list) -> InlineKeyboardMarkup:
-    """Клавиатура для списка заказов пользователя"""
+def get_my_orders_keyboard(orders: list, page: int = 0, total_count: int = 0) -> InlineKeyboardMarkup:
+    """Клавиатура для списка заказов пользователя с пагинацией"""
     builder = InlineKeyboardBuilder()
     
-    # Добавляем кнопки для каждого заказа
+    # Кнопки заказов
     for order in orders:
         builder.add(InlineKeyboardButton(
             text=f"📋 Заказ #{order['order_number']}",
             callback_data=f"order_actions_{order['id']}"
         ))
     
-    # Добавляем кнопки навигации
+    # Навигация по страницам
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"my_orders_page_{page-1}"))
+    if (page + 1) * 5 < total_count:
+        nav_buttons.append(InlineKeyboardButton(text="Вперёд ▶️", callback_data=f"my_orders_page_{page+1}"))
+    
+    if nav_buttons:
+        for btn in nav_buttons:
+            builder.add(btn)
+    
+    # Кнопки меню
     builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="edit_orders"))
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     
-    # Размещаем кнопки заказов по 1 в ряду, навигационные кнопки отдельно
-    builder.adjust(1, 2)
+    builder.adjust(1, len(nav_buttons) if nav_buttons else 1, 2)
     return builder.as_markup()
 
 def get_order_actions_keyboard(order_id: int) -> InlineKeyboardMarkup:
