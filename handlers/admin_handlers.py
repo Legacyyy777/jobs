@@ -9,6 +9,24 @@ from keyboards import get_admin_order_keyboard
 
 router = Router()
 
+def get_order_type_text(order: dict) -> str:
+    """Возвращает текстовое описание типа заказа"""
+    set_type = order.get('set_type')
+    
+    if set_type == 'single':
+        return "один диск"
+    elif set_type == 'set':
+        return "комплект"
+    elif set_type == 'nakidka':
+        return "насадки"
+    elif set_type == 'suspensia':
+        quantity = order.get('quantity', 1)
+        return f"супорта ({quantity} шт.)"
+    elif set_type == 'free':
+        return "свободный заказ"
+    else:
+        return set_type
+
 async def is_moderator(user_id: int, chat_id: int, bot) -> bool:
     """Проверяет, является ли пользователь модератором в чате"""
     try:
@@ -56,6 +74,14 @@ async def admin_confirm_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "confirmed")
     
+    # Получаем username пользователя через API Telegram
+    try:
+        user_info = await callback.bot.get_chat(order["tg_id"])
+        username = user_info.username if user_info.username else order['user_name']
+    except Exception as e:
+        logging.warning(f"Не удалось получить username для tg_id {order['tg_id']}: {e}")
+        username = order['user_name']
+    
     # Уведомляем пользователя (маляра или пескоструйщика)
     try:
         profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
@@ -72,14 +98,22 @@ async def admin_confirm_order(callback: CallbackQuery):
         logging.error(f"Ошибка отправки уведомления пользователю: {e}")
     
     # Обновляем сообщение админу
+    caption_text = (
+        f"✅ <b>ЗАКАЗ ПОДТВЕРЖДЕН</b>\n\n"
+        f"👤 <b>Исполнитель:</b> @{username}\n"
+        f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
+        f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
+    )
+    
+    # Добавляем размер и алюмохром только для дисков
+    if order['set_type'] in ['single', 'set']:
+        caption_text += f"📏 <b>Размер:</b> {order['size']}\n"
+        caption_text += f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
+    
+    caption_text += f"💰 <b>Цена:</b> {order['price']:,} руб."
+    
     await callback.message.edit_caption(
-        caption=f"✅ <b>ЗАКАЗ ПОДТВЕРЖДЕН</b>\n\n"
-                f"👤 <b>Исполнитель:</b> @{order['user_name']}\n"
-                f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
-                f"🔹 <b>Тип:</b> {'один диск' if order['set_type'] == 'single' else 'комплект'}\n"
-                f"📏 <b>Размер:</b> {order['size']}\n"
-                f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
-                f"💰 <b>Цена:</b> {order['price']:,} руб.",
+        caption=caption_text,
         parse_mode="HTML"
     )
     
@@ -111,6 +145,14 @@ async def admin_reject_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "rejected")
     
+    # Получаем username пользователя через API Telegram
+    try:
+        user_info = await callback.bot.get_chat(order["tg_id"])
+        username = user_info.username if user_info.username else order['user_name']
+    except Exception as e:
+        logging.warning(f"Не удалось получить username для tg_id {order['tg_id']}: {e}")
+        username = order['user_name']
+    
     # Уведомляем пользователя (маляра или пескоструйщика)
     try:
         profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
@@ -126,14 +168,22 @@ async def admin_reject_order(callback: CallbackQuery):
         logging.error(f"Ошибка отправки уведомления об отклонении: {e}")
     
     # Обновляем сообщение админу
+    caption_text = (
+        f"❌ <b>ЗАКАЗ ОТКЛОНЕН</b>\n\n"
+        f"👤 <b>Исполнитель:</b> @{username}\n"
+        f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
+        f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
+    )
+    
+    # Добавляем размер и алюмохром только для дисков
+    if order['set_type'] in ['single', 'set']:
+        caption_text += f"📏 <b>Размер:</b> {order['size']}\n"
+        caption_text += f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
+    
+    caption_text += f"💰 <b>Цена:</b> {order['price']:,} руб."
+    
     await callback.message.edit_caption(
-        caption=f"❌ <b>ЗАКАЗ ОТКЛОНЕН</b>\n\n"
-                f"👤 <b>Исполнитель:</b> @{order['user_name']}\n"
-                f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
-                f"🔹 <b>Тип:</b> {'один диск' if order['set_type'] == 'single' else 'комплект'}\n"
-                f"📏 <b>Размер:</b> {order['size']}\n"
-                f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
-                f"💰 <b>Цена:</b> {order['price']:,} руб.",
+        caption=caption_text,
         parse_mode="HTML"
     )
     
