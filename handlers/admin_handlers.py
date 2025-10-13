@@ -115,7 +115,7 @@ async def admin_confirm_order(callback: CallbackQuery):
     
     caption_text = (
         f"✅ <b>ЗАКАЗ ПОДТВЕРЖДЕН</b>\n\n"
-        f"👤 <b>Исполнитель:</b> {executor_display}\n"
+        f"{executor_display}\n"
         f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
         f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
     )
@@ -200,7 +200,7 @@ async def admin_reject_order(callback: CallbackQuery):
     
     caption_text = (
         f"❌ <b>ЗАКАЗ ОТКЛОНЕН</b>\n\n"
-        f"👤 <b>Исполнитель:</b> {executor_display}\n"
+        f"{executor_display}\n"
         f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
         f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
     )
