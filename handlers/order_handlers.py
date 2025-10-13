@@ -1011,9 +1011,15 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
     else:
         set_type_text = set_type
     
+    # Определяем отображение исполнителя
+    if profession == "painter":
+        executor_display = f"@{username}"
+    else:
+        executor_display = f"@{username}"
+    
     text = (
         f"🆕 <b>Новый заказ</b>\n\n"
-        f"<b>{profession_text}:</b> @{username}\n"
+        f"<b>{profession_text}:</b> {executor_display}\n"
         f"📋 <b>Номер заказа:</b> {order_number}\n"
         f"🔹 <b>Тип:</b> {set_type_text}\n"
         f"💰 <b>Цена:</b> {order_data.get('price', 0):,} руб."
