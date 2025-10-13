@@ -211,10 +211,12 @@ class Database:
                 """)
                 
                 # Миграция для добавления новых полей
+                logger.info("🔄 Выполнение миграций базы данных...")
                 try:
                     # Миграция для таблицы пользователей
                     await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profession VARCHAR(20) DEFAULT 'painter'")
                     await conn.execute("UPDATE users SET profession = 'painter' WHERE profession IS NULL")
+                    logger.info("✅ Миграция: добавлена колонка profession в таблицу users")
                     
                     # Миграция для таблицы заказов
                     await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS suspensia_type VARCHAR(20)")
@@ -222,6 +224,12 @@ class Database:
                     await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_deep INTEGER DEFAULT 0")
                     await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spraying_shallow INTEGER DEFAULT 0")
                     await conn.execute("ALTER TABLE orders ALTER COLUMN size DROP NOT NULL")
+                    logger.info("✅ Миграция: добавлены колонки для пескоструйщика и супортов")
+                    
+                    # Миграция для системы напоминаний
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE")
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS reminder_message_id BIGINT")
+                    logger.info("✅ Миграция: добавлены колонки для системы напоминаний")
                     
                     # Удаляем поле profession из таблицы orders, если оно существует
                     try:
@@ -237,8 +245,11 @@ class Database:
                     
                     # Уникальность номеров заказов контролируется на уровне приложения
                     # через проверку в check_order_number_exists с учетом профессии
+                    
+                    logger.info("✅ Все миграции выполнены успешно")
                 except Exception as e:
                     # Игнорируем ошибки, если колонки уже существуют
+                    logger.warning(f"⚠️ Предупреждение при выполнении миграций: {e}")
                     pass
                 
                 # Индексы для оптимизации
@@ -453,6 +464,17 @@ class Database:
             """, order_number, profession)
             return dict(order) if order else None
     
+    async def get_user_order_by_number(self, user_id: int, order_number: str) -> Optional[Dict[str, Any]]:
+        """Получает заказ пользователя по номеру"""
+        async with self.pool.acquire() as conn:
+            order = await conn.fetchrow("""
+                SELECT o.*, u.profession
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.order_number = $1 AND o.user_id = $2
+            """, order_number, user_id)
+            return dict(order) if order else None
+    
     async def get_order_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:
         """Получает заказ по ID"""
         async with self.pool.acquire() as conn:
@@ -488,6 +510,65 @@ class Database:
                 WHERE id = $1 AND user_id = $2
             """, order_id, user_id)
             return dict(order) if order else None
+    
+    async def get_user_orders_paginated(self, user_id: int, limit: int = 5, offset: int = 0) -> List[Dict[str, Any]]:
+        """Получает заказы пользователя с пагинацией"""
+        async with self.pool.acquire() as conn:
+            orders = await conn.fetch("""
+                SELECT o.*, u.profession FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.user_id = $1
+                ORDER BY o.created_at DESC 
+                LIMIT $2 OFFSET $3
+            """, user_id, limit, offset)
+            return [dict(order) for order in orders]
+
+    async def get_user_orders_total_count(self, user_id: int) -> int:
+        """Получает общее количество заказов пользователя"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1", user_id
+            )
+            return result or 0
+    
+    async def get_unconfirmed_orders_older_than(self, minutes: int) -> List[Dict[str, Any]]:
+        """Получает неподтвержденные заказы старше указанного количества минут (только те, которым еще не отправлено напоминание)"""
+        async with self.pool.acquire() as conn:
+            orders = await conn.fetch("""
+                SELECT o.*, u.tg_id, u.name as user_name, u.profession
+                FROM orders o
+                JOIN users u ON o.user_id = u.id
+                WHERE o.status = 'draft'
+                AND o.created_at < NOW() - INTERVAL '%s minutes'
+                AND (o.reminder_sent IS NULL OR o.reminder_sent = FALSE)
+                ORDER BY o.created_at ASC
+            """ % minutes)
+            return [dict(order) for order in orders]
+    
+    async def mark_order_as_reminded(self, order_id: int):
+        """Помечает заказ как напомненный"""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE orders SET reminder_sent = TRUE WHERE id = $1",
+                order_id
+            )
+    
+    async def save_reminder_message_id(self, order_id: int, message_id: int):
+        """Сохраняет ID сообщения с напоминанием"""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE orders SET reminder_message_id = $1 WHERE id = $2",
+                message_id, order_id
+            )
+    
+    async def get_reminder_message_id(self, order_id: int) -> Optional[int]:
+        """Получает ID сообщения с напоминанием"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(
+                "SELECT reminder_message_id FROM orders WHERE id = $1",
+                order_id
+            )
+            return result
 
 # Глобальный экземпляр базы данных
 db = Database()

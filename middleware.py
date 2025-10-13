@@ -66,8 +66,12 @@ class AccessMiddleware(BaseMiddleware):
         except Exception:
             user_id = None
 
-        # Всегда разрешаем главному админу из .env
-        if user_id and (user_id == config.ADMIN_CHAT_ID or user_id in config.ALLOWED_USER_IDS):
+        # Всегда разрешаем главному админу из .env, а также whitelisting и модераторам из .env
+        if user_id and (
+            user_id == config.ADMIN_CHAT_ID
+            or user_id in config.ALLOWED_USER_IDS
+            or user_id in config.MODERATORS
+        ):
             return await handler(event, data)
 
         # Отказываем в доступе

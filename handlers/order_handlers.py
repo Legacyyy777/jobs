@@ -492,6 +492,16 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
         
+    elif set_type == "free":
+        # Для свободного заказа запрашиваем цену
+        text = "🆓 <b>Свободный заказ</b>\n\nВведите цену в рублях:"
+        keyboard = get_cancel_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_free_price)
+        await callback.answer()
+        return
+        
     else:
         # Для дисков (single/set) выбираем размер
         set_type_text = "один диск" if set_type == "single" else "комплект"
@@ -672,6 +682,29 @@ async def process_suspensia_quantity(message: Message, state: FSMContext):
         await message.answer("❌ Неверный формат количества. Введите число:")
         return
 
+@router.message(StateFilter(OrderStates.waiting_for_free_price))
+async def process_free_price(message: Message, state: FSMContext):
+    """Обработка цены свободного заказа"""
+    if not message.text:
+        await message.answer("❌ Цена не может быть пустой. Попробуйте еще раз:")
+        return
+    
+    try:
+        price = int(message.text.strip())
+        
+        if price <= 0:
+            await message.answer("❌ Цена должна быть больше 0. Попробуйте еще раз:")
+            return
+        
+        await state.update_data(price=price)
+        
+        # Создаем заказ
+        await create_order_from_message_data(message, state)
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат цены. Введите число:")
+        return
+
 async def create_order_from_message_data(message: Message, state: FSMContext):
     """Создает заказ из данных состояния для сообщений"""
     data = await state.get_data()
@@ -790,6 +823,8 @@ def get_set_type_text(set_type: str, data: dict) -> str:
                 profession_text = f"супорта с логотипом ({quantity} шт.)"
             else:
                 profession_text = f"супорта ({quantity} шт.)"
+    elif set_type == "free":
+        profession_text = "свободный заказ"
     else:
         profession_text = set_type
     
@@ -1008,6 +1043,8 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 set_type_text = f"супорта с логотипом ({quantity} шт.)"
             else:
                 set_type_text = f"супорта ({quantity} шт.)"
+    elif set_type == "free":
+        set_type_text = "свободный заказ"
     else:
         set_type_text = set_type
     
@@ -1076,8 +1113,17 @@ async def handle_any_message(message: Message, state: FSMContext):
     if str(message.chat.id) == str(config.MODERATION_CHAT_ID):
         return
     
-    # Если пользователь не в процессе создания заказа, показываем главное меню
+    # Игнорируем состояния редактирования заказов (они обрабатываются в edit_handlers.py)
+    from handlers.fsm import EditOrderStates
     current_state = await state.get_state()
+    
+    # Проверяем, не находимся ли мы в состоянии редактирования заказов
+    if (current_state == EditOrderStates.waiting_for_order_number or 
+        current_state == EditOrderStates.waiting_for_new_price):
+        # Эти состояния обрабатываются в edit_handlers.py, пропускаем
+        return
+    
+    # Если пользователь не в процессе создания заказа, показываем главное меню
     if current_state is None:
         # Регистрируем пользователя в базе данных
         user_id = await db.get_or_create_user(

@@ -16,6 +16,7 @@ class OrderStates(StatesGroup):
     waiting_for_spraying = State()
     waiting_for_deep_spraying = State()
     waiting_for_shallow_spraying = State()
+    waiting_for_free_price = State()
     order_confirmed = State()
 
 class EditOrderStates(StatesGroup):
