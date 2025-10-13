@@ -107,9 +107,15 @@ async def admin_confirm_order(callback: CallbackQuery):
         logging.error(f"Ошибка отправки уведомления пользователю: {e}")
     
     # Обновляем сообщение админу
+    # Определяем отображение исполнителя в зависимости от профессии
+    if order.get('profession') == 'painter':
+        executor_display = f"🎨 Маляр: @{username}"
+    else:
+        executor_display = f"💨 Пескоструйщик: @{username}"
+    
     caption_text = (
         f"✅ <b>ЗАКАЗ ПОДТВЕРЖДЕН</b>\n\n"
-        f"👤 <b>Исполнитель:</b> @{username}\n"
+        f"👤 <b>Исполнитель:</b> {executor_display}\n"
         f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
         f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
     )
@@ -186,9 +192,15 @@ async def admin_reject_order(callback: CallbackQuery):
         logging.error(f"Ошибка отправки уведомления об отклонении: {e}")
     
     # Обновляем сообщение админу
+    # Определяем отображение исполнителя в зависимости от профессии
+    if order.get('profession') == 'painter':
+        executor_display = f"🎨 Маляр: @{username}"
+    else:
+        executor_display = f"💨 Пескоструйщик: @{username}"
+    
     caption_text = (
         f"❌ <b>ЗАКАЗ ОТКЛОНЕН</b>\n\n"
-        f"👤 <b>Исполнитель:</b> @{username}\n"
+        f"👤 <b>Исполнитель:</b> {executor_display}\n"
         f"📋 <b>Номер заказа:</b> {order['order_number']}\n"
         f"🔹 <b>Тип:</b> {get_order_type_text(order)}\n"
     )
