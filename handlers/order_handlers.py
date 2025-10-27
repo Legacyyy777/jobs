@@ -113,9 +113,8 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
             base_price = price_map.get(size, 0)
         
         # Добавляем стоимость напыления
+        # spraying_deep и spraying_shallow уже содержат общее количество за все диски
         spraying_price = (spraying_deep * config.PRICE_SPRAYING_DEEP) + (spraying_shallow * config.PRICE_SPRAYING_SHALLOW)
-        # Напыление умножаем на количество дисков
-        spraying_price = spraying_price * quantity
         total_price = base_price + spraying_price
         
         logging.info(f"💰 Цена за {set_type} {size} ×{quantity} (пескоструйщик): {base_price}₽ + напыление: {spraying_price}₽ = {total_price}₽")
