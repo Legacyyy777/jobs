@@ -12,6 +12,8 @@ class Config:
     BOT_TOKEN = os.getenv('BOT_TOKEN')
     ADMIN_CHAT_ID = int(os.getenv('ADMIN_CHAT_ID', 0))
     MODERATION_CHAT_ID = os.getenv('MODERATION_CHAT_ID')  # ID чата/канала для модерации заказов
+    PAINTER_TOPIC_ID = int(os.getenv('PAINTER_TOPIC_ID', 0)) if os.getenv('PAINTER_TOPIC_ID') else None  # ID топика для маляра
+    SANDBLASTER_TOPIC_ID = int(os.getenv('SANDBLASTER_TOPIC_ID', 0)) if os.getenv('SANDBLASTER_TOPIC_ID') else None  # ID топика для пескоструйщика
     
     # Список модераторов из переменной окружения
     @property

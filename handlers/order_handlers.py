@@ -1138,13 +1138,22 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 text += f"\n💨 <b>Напыление:</b> {', '.join(spraying_info)}"
     
     try:
+        # Определяем topic_id в зависимости от профессии
+        if profession == "painter" and config.PAINTER_TOPIC_ID:
+            message_thread_id = config.PAINTER_TOPIC_ID
+        elif profession == "sandblaster" and config.SANDBLASTER_TOPIC_ID:
+            message_thread_id = config.SANDBLASTER_TOPIC_ID
+        else:
+            message_thread_id = None
+        
         # Для пескоструйщика не показываем кнопки (заказ уже подтвержден)
         if profession == "sandblaster":
             await bot.send_photo(
                 chat_id=config.MODERATION_CHAT_ID,
                 photo=order_data["photo_file_id"],
                 caption=text,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                message_thread_id=message_thread_id
             )
         else:
             # Для маляра показываем кнопки подтверждения
@@ -1154,7 +1163,8 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 photo=order_data["photo_file_id"],
                 caption=text,
                 parse_mode="HTML",
-                reply_markup=get_admin_order_keyboard(order_number, order_id)
+                reply_markup=get_admin_order_keyboard(order_number, order_id),
+                message_thread_id=message_thread_id
             )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
