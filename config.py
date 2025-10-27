@@ -72,8 +72,8 @@ class Config:
     
     # Цены за новые типы заказов (для маляра)
     PRICE_NAKIDKA = int(os.getenv('PRICE_NAKIDKA', 300))  # Покраска насадок
-    PRICE_SUSPENSIA_PAINT = int(os.getenv('PRICE_SUSPENSIA_PAINT', 500))  # Супорт покраска
-    PRICE_SUSPENSIA_LOGO = int(os.getenv('PRICE_SUSPENSIA_LOGO', 750))  # Супорт с логотипом
+    PRICE_SUSPENSIA_PAINT = int(os.getenv('PRICE_SUSPENSIA_PAINT', 750))  # Супорт покраска
+    PRICE_SUSPENSIA_LOGO = int(os.getenv('PRICE_SUSPENSIA_LOGO', 875))  # Супорт с логотипом
     
     # Цены для пескоструйщика - комплекты
     PRICE_SANDBLASTER_SET_R12 = int(os.getenv('PRICE_SANDBLASTER_SET_R12', 600))

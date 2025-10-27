@@ -1,12 +1,22 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-def get_main_menu_keyboard() -> InlineKeyboardMarkup:
+def get_main_menu_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     """Главное меню бота"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🎨 Создать заказ", callback_data="create_order"))
     builder.add(InlineKeyboardButton(text="💰 Заработок за день", callback_data="earnings_day"))
     builder.add(InlineKeyboardButton(text="📊 Заработок за месяц", callback_data="earnings_month"))
+    
+    # Добавляем кнопку прайс-листа в зависимости от профессии
+    if profession == "painter":
+        builder.add(InlineKeyboardButton(text="💰 Прайс-лист маляра", callback_data="price_list_painter"))
+    elif profession == "sandblaster":
+        builder.add(InlineKeyboardButton(text="💰 Прайс-лист пескоструйщика", callback_data="price_list_sandblaster"))
+    else:
+        # Если профессия не определена, показываем обе кнопки
+        builder.add(InlineKeyboardButton(text="💰 Прайс-лист", callback_data="price_list"))
+    
     builder.add(InlineKeyboardButton(text="✏️ Редактировать заказы", callback_data="edit_orders"))
     builder.add(InlineKeyboardButton(text="ℹ️ Помощь", callback_data="help"))
     builder.adjust(1)

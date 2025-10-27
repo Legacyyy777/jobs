@@ -90,6 +90,8 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
                 "R24": config.PRICE_SANDBLASTER_SINGLE_R24,
             }
             base_price = price_map.get(size, 0)
+            # Умножаем на количество дисков
+            base_price = base_price * quantity
             
         elif set_type == "set":
             # Цены для комплектов пескоструйщика
@@ -112,9 +114,11 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
         
         # Добавляем стоимость напыления
         spraying_price = (spraying_deep * config.PRICE_SPRAYING_DEEP) + (spraying_shallow * config.PRICE_SPRAYING_SHALLOW)
+        # Напыление умножаем на количество дисков
+        spraying_price = spraying_price * quantity
         total_price = base_price + spraying_price
         
-        logging.info(f"💰 Цена за {set_type} {size} (пескоструйщик): {base_price}₽ + напыление: {spraying_price}₽ = {total_price}₽")
+        logging.info(f"💰 Цена за {set_type} {size} ×{quantity} (пескоструйщик): {base_price}₽ + напыление: {spraying_price}₽ = {total_price}₽")
         return total_price
     
     else:
@@ -165,6 +169,9 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
         
             # Добавляем доплату за подготовку
             base_price += config.PRICE_PREP_SINGLE
+            
+            # Умножаем на количество дисков
+            base_price = base_price * quantity
         
         elif set_type == "set":
             if size == "R12":
@@ -226,7 +233,7 @@ async def cmd_start(message: Message, state: FSMContext):
         else:
             text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
         
-        keyboard = get_main_menu_keyboard()
+        keyboard = get_main_menu_keyboard(user_profession)
         
         await message.answer(text, parse_mode="HTML", reply_markup=keyboard)
     else:
@@ -255,7 +262,7 @@ async def process_profession_selection(callback: CallbackQuery, state: FSMContex
     else:
         text = "👋 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
     
-    keyboard = get_main_menu_keyboard()
+    keyboard = get_main_menu_keyboard(profession)
     
     await safe_edit_message(callback, text, keyboard)
     await state.clear()
@@ -282,7 +289,7 @@ async def show_main_menu(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     
-    keyboard = get_main_menu_keyboard()
+    keyboard = get_main_menu_keyboard(user_profession)
     
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
@@ -320,8 +327,12 @@ async def show_earnings_day(callback: CallbackQuery):
     )
     
     earnings = await db.get_user_earnings_today(user_id)
+    avg_earnings = await db.get_user_avg_earnings_per_day(user_id)
     
-    text = f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб."
+    text = (
+        f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб.\n\n"
+        f"📊 <b>Средний заработок за день:</b> {avg_earnings:,.0f} руб."
+    )
     keyboard = get_back_to_menu_keyboard()
     
     await safe_edit_message(callback, text, keyboard)
@@ -503,15 +514,53 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
         return
         
     else:
-        # Для дисков (single/set) выбираем размер
-        set_type_text = "один диск" if set_type == "single" else "комплект"
+        # Для дисков (single/set) проверяем тип
+        if set_type == "single":
+            # Для одиночных дисков сначала спрашиваем количество
+            data = await state.get_data()
+            profession = data.get("profession", "painter")
+            
+            text = "🔹 <b>Один диск</b>\n\nВведите количество дисков:"
+            keyboard = get_cancel_keyboard()
+            
+            await safe_edit_message(callback, text, keyboard)
+            await state.set_state(OrderStates.waiting_for_disk_quantity)
+        else:
+            # Для комплектов выбираем размер
+            text = "📋 <b>Тип заказа:</b> комплект\n\nВыберите размер диска:"
+            keyboard = get_size_keyboard()
+            
+            await safe_edit_message(callback, text, keyboard)
+            await state.set_state(OrderStates.waiting_for_size)
         
-        text = f"📋 <b>Тип заказа:</b> {set_type_text}\n\nВыберите размер диска:"
+        await callback.answer()
+
+@router.message(StateFilter(OrderStates.waiting_for_disk_quantity))
+async def process_disk_quantity(message: Message, state: FSMContext):
+    """Обработка количества дисков"""
+    if not message.text:
+        await message.answer("❌ Введите количество дисков:")
+        return
+    
+    try:
+        quantity = int(message.text.strip())
+        
+        if quantity <= 0:
+            await message.answer("❌ Количество должно быть больше 0. Попробуйте еще раз:")
+            return
+        
+        await state.update_data(disk_quantity=quantity)
+        
+        # Переходим к выбору размера
+        text = f"📋 Количество: {quantity} шт.\n\nВыберите размер диска:"
         keyboard = get_size_keyboard()
         
-        await safe_edit_message(callback, text, keyboard)
+        await message.answer(text, reply_markup=keyboard)
         await state.set_state(OrderStates.waiting_for_size)
-        await callback.answer()
+        
+    except ValueError:
+        await message.answer("❌ Неверный формат. Введите число:")
+        return
 
 @router.callback_query(F.data.startswith("size_"), StateFilter(OrderStates.waiting_for_size))
 async def process_size(callback: CallbackQuery, state: FSMContext):
@@ -853,8 +902,11 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     set_type = data["set_type"]
     size = data["size"]
     
+    # Получаем количество дисков (для single типа)
+    quantity = data.get("disk_quantity", 1)
+    
     # Рассчитываем цену
-    price = calculate_price(profession, set_type, size, alumochrome)
+    price = calculate_price(profession, set_type, size, alumochrome, quantity=quantity)
     
     # Сохраняем данные
     await state.update_data(alumochrome=alumochrome, price=price)
@@ -1007,8 +1059,11 @@ async def process_cancel(callback: CallbackQuery, state: FSMContext):
     """Обработка отмены заказа"""
     await state.clear()
     
+    # Получаем профессию пользователя
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
     text = "❌ <b>Заказ отменен</b>\n\nВыберите действие:"
-    keyboard = get_main_menu_keyboard()
+    keyboard = get_main_menu_keyboard(user_profession)
     
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
@@ -1131,11 +1186,18 @@ async def handle_any_message(message: Message, state: FSMContext):
             message.from_user.full_name or message.from_user.username or "Unknown"
         )
         
+        # Получаем профессию пользователя
+        user_profession = await db.get_user_profession(message.from_user.id)
+        
+        if user_profession == "painter":
+            text = "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\nВыберите действие:"
+        else:
+            text = "💨 <b>Добро пожаловать в бот для пескоструйщиков!</b>\n\nВыберите действие:"
+        
         await message.answer(
-            "🎨 <b>Добро пожаловать в бот для маляров!</b>\n\n"
-            "Выберите действие:",
+            text,
             parse_mode="HTML",
-            reply_markup=get_main_menu_keyboard()
+            reply_markup=get_main_menu_keyboard(user_profession)
         )
     else:
         # Если пользователь в процессе создания заказа, но отправил что-то не то
@@ -1143,3 +1205,97 @@ async def handle_any_message(message: Message, state: FSMContext):
             "❌ Неверный формат сообщения. Используйте кнопки для навигации.",
             reply_markup=get_cancel_keyboard()
         )
+
+@router.callback_query(F.data.startswith("price_list"))
+async def show_price_list(callback: CallbackQuery):
+    """Показать прайс-лист"""
+    from config import config
+    from keyboards import get_back_to_menu_keyboard
+    
+    # Определяем профессию по callback_data
+    if callback.data == "price_list_painter":
+        profession = "painter"
+    elif callback.data == "price_list_sandblaster":
+        profession = "sandblaster"
+    else:
+        # Если callback_data просто "price_list", получаем профессию пользователя
+        profession = await db.get_user_profession(callback.from_user.id) or "painter"
+    
+    # Формируем прайс-лист
+    if profession == "painter":
+        # Прайс-лист для маляра
+        text = "💰 <b>Прайс-лист маляра</b>\n\n"
+        text += "🔹 <b>Один диск:</b>\n"
+        text += f"R12: {config.PRICE_SINGLE_R12 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R13: {config.PRICE_SINGLE_R13 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R14: {config.PRICE_SINGLE_R14 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R15: {config.PRICE_SINGLE_R15 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R16: {config.PRICE_SINGLE_R16 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R17: {config.PRICE_SINGLE_R17 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R18: {config.PRICE_SINGLE_R18 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R19: {config.PRICE_SINGLE_R19 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R20: {config.PRICE_SINGLE_R20 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R21: {config.PRICE_SINGLE_R21 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R22: {config.PRICE_SINGLE_R22 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R23: {config.PRICE_SINGLE_R23 + config.PRICE_PREP_SINGLE}₽\n"
+        text += f"R24: {config.PRICE_SINGLE_R24 + config.PRICE_PREP_SINGLE}₽\n\n"
+        text += "🔹 <b>Комплект:</b>\n"
+        text += f"R12: {config.PRICE_SET_R12 + config.PRICE_PREP_SET}₽\n"
+        text += f"R13: {config.PRICE_SET_R13 + config.PRICE_PREP_SET}₽\n"
+        text += f"R14: {config.PRICE_SET_R14 + config.PRICE_PREP_SET}₽\n"
+        text += f"R15: {config.PRICE_SET_R15 + config.PRICE_PREP_SET}₽\n"
+        text += f"R16: {config.PRICE_SET_R16 + config.PRICE_PREP_SET}₽\n"
+        text += f"R17: {config.PRICE_SET_R17 + config.PRICE_PREP_SET}₽\n"
+        text += f"R18: {config.PRICE_SET_R18 + config.PRICE_PREP_SET}₽\n"
+        text += f"R19: {config.PRICE_SET_R19 + config.PRICE_PREP_SET}₽\n"
+        text += f"R20: {config.PRICE_SET_R20 + config.PRICE_PREP_SET}₽\n"
+        text += f"R21: {config.PRICE_SET_R21 + config.PRICE_PREP_SET}₽\n"
+        text += f"R22: {config.PRICE_SET_R22 + config.PRICE_PREP_SET}₽\n"
+        text += f"R23: {config.PRICE_SET_R23 + config.PRICE_PREP_SET}₽\n"
+        text += f"R24: {config.PRICE_SET_R24 + config.PRICE_PREP_SET}₽\n\n"
+        text += "🔸 <b>Специальные услуги:</b>\n"
+        text += f"Насадки: {config.PRICE_NAKIDKA}₽\n"
+        text += f"Супорта покраска: {config.PRICE_SUSPENSIA_PAINT}₽\n"
+        text += f"Супорта с логотипом: {config.PRICE_SUSPENSIA_LOGO}₽\n\n"
+        text += "✨ Алюмохром: +{0}₽".format(config.PRICE_ALUMOCHROME_EXTRA)
+    else:
+        # Прайс-лист для пескоструйщика
+        text = "💰 <b>Прайс-лист пескоструйщика</b>\n\n"
+        text += "🔹 <b>Один диск:</b>\n"
+        text += f"R12: {config.PRICE_SANDBLASTER_SINGLE_R12}₽\n"
+        text += f"R13: {config.PRICE_SANDBLASTER_SINGLE_R13}₽\n"
+        text += f"R14: {config.PRICE_SANDBLASTER_SINGLE_R14}₽\n"
+        text += f"R15: {config.PRICE_SANDBLASTER_SINGLE_R15}₽\n"
+        text += f"R16: {config.PRICE_SANDBLASTER_SINGLE_R16}₽\n"
+        text += f"R17: {config.PRICE_SANDBLASTER_SINGLE_R17}₽\n"
+        text += f"R18: {config.PRICE_SANDBLASTER_SINGLE_R18}₽\n"
+        text += f"R19: {config.PRICE_SANDBLASTER_SINGLE_R19}₽\n"
+        text += f"R20: {config.PRICE_SANDBLASTER_SINGLE_R20}₽\n"
+        text += f"R21: {config.PRICE_SANDBLASTER_SINGLE_R21}₽\n"
+        text += f"R22: {config.PRICE_SANDBLASTER_SINGLE_R22}₽\n"
+        text += f"R23: {config.PRICE_SANDBLASTER_SINGLE_R23}₽\n"
+        text += f"R24: {config.PRICE_SANDBLASTER_SINGLE_R24}₽\n\n"
+        text += "🔹 <b>Комплект:</b>\n"
+        text += f"R12: {config.PRICE_SANDBLASTER_SET_R12}₽\n"
+        text += f"R13: {config.PRICE_SANDBLASTER_SET_R13}₽\n"
+        text += f"R14: {config.PRICE_SANDBLASTER_SET_R14}₽\n"
+        text += f"R15: {config.PRICE_SANDBLASTER_SET_R15}₽\n"
+        text += f"R16: {config.PRICE_SANDBLASTER_SET_R16}₽\n"
+        text += f"R17: {config.PRICE_SANDBLASTER_SET_R17}₽\n"
+        text += f"R18: {config.PRICE_SANDBLASTER_SET_R18}₽\n"
+        text += f"R19: {config.PRICE_SANDBLASTER_SET_R19}₽\n"
+        text += f"R20: {config.PRICE_SANDBLASTER_SET_R20}₽\n"
+        text += f"R21: {config.PRICE_SANDBLASTER_SET_R21}₽\n"
+        text += f"R22: {config.PRICE_SANDBLASTER_SET_R22}₽\n"
+        text += f"R23: {config.PRICE_SANDBLASTER_SET_R23}₽\n"
+        text += f"R24: {config.PRICE_SANDBLASTER_SET_R24}₽\n\n"
+        text += "🔸 <b>Специальные услуги:</b>\n"
+        text += f"Насадки: {config.PRICE_SANDBLASTER_NAKIDKA}₽\n"
+        text += f"Супорта: {config.PRICE_SANDBLASTER_SUSPENSIA}₽\n\n"
+        text += "💨 <b>Напыление:</b>\n"
+        text += f"Глубокое: +{config.PRICE_SPRAYING_DEEP}₽\n"
+        text += f"Неглубокое: +{config.PRICE_SPRAYING_SHALLOW}₽"
+    
+    keyboard = get_back_to_menu_keyboard()
+    await safe_edit_message(callback, text, keyboard)
+    await callback.answer()

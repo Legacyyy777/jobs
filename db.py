@@ -385,6 +385,42 @@ class Database:
             """, user_id, start_month_utc, end_month_utc)
             return result or 0
 
+    async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
+        """Получает средний заработок пользователя за день в текущем месяце"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+
+        async with self.pool.acquire() as conn:
+            # Получаем общий заработок за месяц
+            total_earnings = await conn.fetchval("""
+                SELECT COALESCE(SUM(price), 0)
+                FROM orders
+                WHERE user_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            # Получаем количество уникальных дней с заказами
+            days_with_orders = await conn.fetchval("""
+                SELECT COUNT(DISTINCT DATE(created_at AT TIME ZONE 'UTC'))
+                FROM orders
+                WHERE user_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            # Возвращаем 0 если не было заказов, иначе средний заработок
+            if days_with_orders == 0:
+                return 0.0
+            return total_earnings / days_with_orders
+
     async def get_user_orders_count(self, user_id: int) -> int:
         """Получает количество заказов пользователя"""
         async with self.pool.acquire() as conn:

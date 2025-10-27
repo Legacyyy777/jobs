@@ -9,6 +9,7 @@ class OrderStates(StatesGroup):
     waiting_for_photo = State()
     waiting_for_order_number = State()
     waiting_for_set_type = State()
+    waiting_for_disk_quantity = State()
     waiting_for_size = State()
     waiting_for_alumochrome = State()
     waiting_for_suspensia_type = State()
