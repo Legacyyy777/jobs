@@ -2,6 +2,7 @@ import asyncio
 import logging
 import signal
 import sys
+from datetime import datetime, time
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -18,6 +19,56 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Используем функции из middleware для управления состоянием БД
+import random
+
+# Здесь будет подключен большой список приветствий
+
+async def send_daily_greeting_task(bot):
+    """Задача для отправки ежедневного приветствия в 9:00"""
+    target_time = time(9, 0)  # 9:00 утра
+    
+    while True:
+        try:
+            # Получаем текущее время
+            now = datetime.now().time()
+            
+            # Проверяем, что уже 9:00 или позже
+            if now >= target_time:
+                # Если past 9:00, ждем до следующего дня
+                # Вычисляем секунды до следующего 9:00
+                now_datetime = datetime.now()
+                tomorrow = now_datetime.replace(hour=0, minute=0, second=0, microsecond=0) + asyncio.timedelta(days=1)
+                next_9am = tomorrow.replace(hour=9, minute=0, second=0)
+                wait_seconds = (next_9am - now_datetime).total_seconds()
+                
+                # Если сейчас уже позже 9:00, ждем до 9:00 следующего дня
+                await asyncio.sleep(wait_seconds)
+            
+            # Когда наступает 9:00, отправляем приветствие в группу
+            greeting = random.choice(GREETING_MESSAGES)
+            
+            if config.MODERATION_CHAT_ID:
+                try:
+                    await bot.send_message(
+                        chat_id=config.MODERATION_CHAT_ID,
+                        text=greeting,
+                        parse_mode="HTML"
+                    )
+                    logger.info("🌅 Приветствие отправлено в группу модерации!")
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка при отправке приветствия в группу: {e}")
+            
+            # Ждем до следующего дня
+            now_datetime = datetime.now()
+            tomorrow = now_datetime.replace(hour=0, minute=0, second=0, microsecond=0) + asyncio.timedelta(days=1)
+            next_9am = tomorrow.replace(hour=9, minute=0, second=0)
+            wait_seconds = (next_9am - now_datetime).total_seconds()
+            await asyncio.sleep(wait_seconds)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в задаче отправки приветствий: {e}")
+            await asyncio.sleep(3600)  # Ждем час при ошибке
 
 async def check_unconfirmed_orders_task(bot):
     """Задача для проверки неподтвержденных заказов и отправки напоминаний"""
@@ -191,6 +242,9 @@ async def main():
         # Запускаем задачу проверки неподтвержденных заказов
         reminder_task = asyncio.create_task(check_unconfirmed_orders_task(bot))
         
+        # Запускаем задачу отправки ежедневных приветствий
+        greeting_task = asyncio.create_task(send_daily_greeting_task(bot))
+        
         # Запускаем бота
         logger.info("🚀 Запуск бота...")
         await dp.start_polling(bot)
@@ -203,6 +257,8 @@ async def main():
             health_task.cancel()
         if 'reminder_task' in locals():
             reminder_task.cancel()
+        if 'greeting_task' in locals():
+            greeting_task.cancel()
         # Закрываем соединения
         logger.info("🔌 Закрытие соединений...")
         await db.close_pool()
