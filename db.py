@@ -764,14 +764,14 @@ class Database:
             )
             return user['name'] if user else None
 
-    async def get_user_name_by_id(self, user_id: int) -> Optional[str]:
-        """Получает имя пользователя по ID"""
+    async def get_user_tg_id_by_id(self, user_id: int) -> Optional[int]:
+        """Получает Telegram ID пользователя по внутреннему ID"""
         async with self.pool.acquire() as conn:
             user = await conn.fetchrow(
-                "SELECT name FROM users WHERE id = $1",
+                "SELECT tg_id FROM users WHERE id = $1",
                 user_id
             )
-            return user['name'] if user else None
+            return user['tg_id'] if user else None
 
 # Глобальный экземпляр базы данных
 db = Database()

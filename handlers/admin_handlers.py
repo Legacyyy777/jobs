@@ -108,9 +108,14 @@ async def admin_confirm_order(callback: CallbackQuery):
             painter_30_id = order.get('painter_30_id')
             
             if painter_70_id and painter_30_id:
-                # Получаем имена маляров
+                # Получаем имена и Telegram ID маляров
                 painter_70_name = await db.get_user_name_by_id(painter_70_id)
                 painter_30_name = await db.get_user_name_by_id(painter_30_id)
+                
+                # Получаем Telegram ID маляров
+                painter_70_tg_id = await db.get_user_tg_id_by_id(painter_70_id)
+                painter_30_tg_id = await db.get_user_tg_id_by_id(painter_30_id)
+                
                 total_price = order.get('price', 0)
                 price_70 = int(total_price * 0.7)
                 price_30 = int(total_price * 0.3)
@@ -118,7 +123,7 @@ async def admin_confirm_order(callback: CallbackQuery):
                 # Уведомляем маляра 70%
                 try:
                     await callback.bot.send_message(
-                        chat_id=painter_70_id,
+                        chat_id=painter_70_tg_id,
                         text=f"✅ <b>Заказ 70/30 подтвержден!</b>\n\n"
                              f"📋 Номер: {order['order_number']}\n"
                              f"💰 Ваша сумма: {price_70:,} руб. (70%)\n"
@@ -134,7 +139,7 @@ async def admin_confirm_order(callback: CallbackQuery):
                 # Уведомляем маляра 30%
                 try:
                     await callback.bot.send_message(
-                        chat_id=painter_30_id,
+                        chat_id=painter_30_tg_id,
                         text=f"✅ <b>Заказ 70/30 подтвержден!</b>\n\n"
                              f"📋 Номер: {order['order_number']}\n"
                              f"💰 Ваша сумма: {price_30:,} руб. (30%)\n"
@@ -241,10 +246,14 @@ async def admin_reject_order(callback: CallbackQuery):
             painter_30_id = order.get('painter_30_id')
             
             if painter_70_id and painter_30_id:
+                # Получаем Telegram ID маляров
+                painter_70_tg_id = await db.get_user_tg_id_by_id(painter_70_id)
+                painter_30_tg_id = await db.get_user_tg_id_by_id(painter_30_id)
+                
                 # Уведомляем маляра 70%
                 try:
                     await callback.bot.send_message(
-                        chat_id=painter_70_id,
+                        chat_id=painter_70_tg_id,
                         text=f"❌ <b>Заказ 70/30 отклонен</b>\n\n"
                              f"📋 Номер: {order['order_number']}\n\n"
                              f"Обратитесь к администратору для уточнения деталей.",
@@ -257,7 +266,7 @@ async def admin_reject_order(callback: CallbackQuery):
                 # Уведомляем маляра 30%
                 try:
                     await callback.bot.send_message(
-                        chat_id=painter_30_id,
+                        chat_id=painter_30_tg_id,
                         text=f"❌ <b>Заказ 70/30 отклонен</b>\n\n"
                              f"📋 Номер: {order['order_number']}\n\n"
                              f"Обратитесь к администратору для уточнения деталей.",
