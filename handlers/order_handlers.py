@@ -276,7 +276,7 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
                 base_price += config.PRICE_PREP_SET
         
         # Добавляем доплату за алюмохром (только для дисков маляра)
-        if alumochrome and set_type in ["single", "set"] or set_type.startswith("70_30_"):
+        if alumochrome and (set_type in ["single", "set"] or set_type.startswith("70_30_")):
             base_price += config.PRICE_ALUMOCHROME_EXTRA
     
     logging.info(f"💰 Итоговая цена: {base_price}₽")
