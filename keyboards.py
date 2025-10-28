@@ -55,7 +55,7 @@ async def get_painters_selection_keyboard(db) -> InlineKeyboardMarkup:
     
     for painter in painters:
         builder.add(InlineKeyboardButton(
-            text=f"🎨 {painter['name']} (@{painter.get('username', 'no_username')})",
+            text=f"🎨 {painter['name']}",
             callback_data=f"painter_{painter['tg_id']}"
         ))
     

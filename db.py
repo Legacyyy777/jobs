@@ -749,7 +749,7 @@ class Database:
         """Получает всех маляров из базы данных"""
         async with self.pool.acquire() as conn:
             painters = await conn.fetch("""
-                SELECT tg_id, name, username
+                SELECT tg_id, name
                 FROM users
                 WHERE profession = 'painter'
             """)
