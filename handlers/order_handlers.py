@@ -208,6 +208,7 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
         elif set_type.startswith("70_30_"):
             # Обработка типа 70/30 - используем те же цены что и обычные диски
             disk_type = set_type.split("_")[2]  # single или set
+            base_price = 0  # Инициализируем базовую цену
             
             if disk_type == "single":
                 if size == "R12":
