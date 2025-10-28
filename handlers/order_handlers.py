@@ -1049,7 +1049,13 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("painter_"), StateFilter(OrderStates.waiting_for_painter_selection))
 async def process_painter_selection(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора маляра для типа 70/30"""
-    painter_id = int(callback.data.split("_")[1])
+    painter_tg_id = int(callback.data.split("_")[1])
+    
+    # Получаем внутренний ID пользователя по tg_id
+    painter_id = await db.get_or_create_user(
+        painter_tg_id,
+        "Unknown"  # Имя не важно для получения ID
+    )
     
     data = await state.get_data()
     
