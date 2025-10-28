@@ -325,8 +325,8 @@ class Database:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id, created_at, updated_at, reminder_sent, reminder_message_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE, NULL) RETURNING id
+                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id
             """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id)
             return order_id
 
