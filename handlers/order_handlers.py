@@ -1052,9 +1052,14 @@ async def process_painter_selection(callback: CallbackQuery, state: FSMContext):
     painter_tg_id = int(callback.data.split("_")[1])
     
     # Получаем внутренний ID пользователя по tg_id
+    # Сначала получаем имя пользователя из базы данных
+    painter_name = await db.get_user_name_by_tg_id(painter_tg_id)
+    if not painter_name:
+        painter_name = "Unknown"
+    
     painter_id = await db.get_or_create_user(
         painter_tg_id,
-        "Unknown"  # Имя не важно для получения ID
+        painter_name
     )
     
     data = await state.get_data()

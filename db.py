@@ -755,6 +755,15 @@ class Database:
             """)
             return [dict(painter) for painter in painters]
 
+    async def get_user_name_by_tg_id(self, tg_id: int) -> Optional[str]:
+        """Получает имя пользователя по Telegram ID"""
+        async with self.pool.acquire() as conn:
+            user = await conn.fetchrow(
+                "SELECT name FROM users WHERE tg_id = $1",
+                tg_id
+            )
+            return user['name'] if user else None
+
     async def get_user_name_by_id(self, user_id: int) -> Optional[str]:
         """Получает имя пользователя по ID"""
         async with self.pool.acquire() as conn:
