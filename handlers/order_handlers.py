@@ -539,7 +539,9 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора типа заказа"""
     set_type = callback.data.split("_")[2]  # single, set, nakidka, suspensia, 70_30
     
-    await state.update_data(set_type=set_type)
+    # Для типа 70_30 не перезаписываем set_type, так как он уже установлен в process_70_30_type
+    if set_type != "70_30":
+        await state.update_data(set_type=set_type)
     
     if set_type == "nakidka":
         # Для насадок рассчитываем цену и создаем заказ
