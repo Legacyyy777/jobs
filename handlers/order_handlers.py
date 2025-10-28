@@ -1298,25 +1298,25 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
         size = order_data.get('size', 'Не указан')
         text += f"\n📏 <b>Размер:</b> {size}"
         
+        # Для типа 70/30 показываем разделение дохода (независимо от профессии создателя)
+        if order_data.get("set_type", "").startswith("70_30_"):
+            painter_70_id = order_data.get("painter_70_id")
+            painter_30_id = order_data.get("painter_30_id")
+            if painter_70_id and painter_30_id:
+                # Получаем имена маляров
+                painter_70_name = await db.get_user_name_by_id(painter_70_id)
+                painter_30_name = await db.get_user_name_by_id(painter_30_id)
+                total_price = order_data.get('price', 0)
+                price_70 = int(total_price * 0.7)
+                price_30 = int(total_price * 0.3)
+                text += f"\n🎨 <b>Разделение дохода:</b>\n"
+                text += f"   • {painter_70_name}: {price_70:,} руб. (70%)\n"
+                text += f"   • {painter_30_name}: {price_30:,} руб. (30%)"
+        
         if profession == "painter":
             # Для маляра показываем алюмохром
             alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
             text += f"\n✨ <b>Алюмохром:</b> {alumochrome_text}"
-            
-            # Для типа 70/30 показываем разделение дохода
-            if order_data.get("set_type", "").startswith("70_30_"):
-                painter_70_id = order_data.get("painter_70_id")
-                painter_30_id = order_data.get("painter_30_id")
-                if painter_70_id and painter_30_id:
-                    # Получаем имена маляров
-                    painter_70_name = await db.get_user_name_by_id(painter_70_id)
-                    painter_30_name = await db.get_user_name_by_id(painter_30_id)
-                    total_price = order_data.get('price', 0)
-                    price_70 = int(total_price * 0.7)
-                    price_30 = int(total_price * 0.3)
-                    text += f"\n🎨 <b>Разделение дохода:</b>\n"
-                    text += f"   • {painter_70_name}: {price_70:,} руб. (70%)\n"
-                    text += f"   • {painter_30_name}: {price_30:,} руб. (30%)"
         else:
             # Для пескоструйщика показываем напыление
             spraying_deep = order_data.get("spraying_deep", 0)
