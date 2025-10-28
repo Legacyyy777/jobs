@@ -306,7 +306,7 @@ async def show_order_actions(callback: CallbackQuery):
         await callback.answer("❌ Заказ не найден")
         return
     
-    text = f"📋 <b>Действия с заказом</b>\n\n{format_order_info(order)}"
+    text = f"📋 <b>Действия с заказом</b>\n\n{await format_order_info(order)}"
     keyboard = get_order_actions_keyboard(order_id)
     
     await safe_edit_message(callback, text, keyboard)
