@@ -927,7 +927,9 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
             "spraying_deep": data.get("spraying_deep", 0),
             "spraying_shallow": data.get("spraying_shallow", 0),
             "price": data["price"],
-            "photo_file_id": data["photo_file_id"]
+            "photo_file_id": data["photo_file_id"],
+            "painter_70_id": data.get("painter_70"),
+            "painter_30_id": data.get("painter_30")
         }
         await send_admin_notification(message.bot, data["order_number"], order_data, message.from_user.username or message.from_user.full_name, order_id)
         
@@ -1142,7 +1144,9 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
             "spraying_deep": data.get("spraying_deep", 0),
             "spraying_shallow": data.get("spraying_shallow", 0),
             "price": data["price"],
-            "photo_file_id": data["photo_file_id"]
+            "photo_file_id": data["photo_file_id"],
+            "painter_70_id": data.get("painter_70"),
+            "painter_30_id": data.get("painter_30")
         }
         await send_admin_notification(callback.bot, data["order_number"], order_data, callback.from_user.username or callback.from_user.full_name, order_id)
         

@@ -186,6 +186,21 @@ async def admin_confirm_order(callback: CallbackQuery):
     
     caption_text += f"💰 <b>Цена:</b> {order['price']:,} руб."
     
+    # Добавляем разделение дохода для заказов 70/30
+    if order['set_type'].startswith('70_30_'):
+        painter_70_id = order.get('painter_70_id')
+        painter_30_id = order.get('painter_30_id')
+        if painter_70_id and painter_30_id:
+            # Получаем имена маляров
+            painter_70_name = await db.get_user_name_by_id(painter_70_id)
+            painter_30_name = await db.get_user_name_by_id(painter_30_id)
+            total_price = order.get('price', 0)
+            price_70 = int(total_price * 0.7)
+            price_30 = int(total_price * 0.3)
+            caption_text += f"\n🎨 <b>Разделение дохода:</b>\n"
+            caption_text += f"   • {painter_70_name}: {price_70:,} руб. (70%)\n"
+            caption_text += f"   • {painter_30_name}: {price_30:,} руб. (30%)"
+    
     await callback.message.edit_caption(
         caption=caption_text,
         parse_mode="HTML"
