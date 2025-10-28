@@ -325,9 +325,67 @@ class Database:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id, created_at, updated_at, reminder_sent, reminder_message_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE, NULL) RETURNING id
-            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id)
+                INSERT INTO orders (order_number, user_id, set_type, price, status)
+                VALUES ($1, $2, $3, $4, $5) RETURNING id
+            """, order_number, user_id, set_type, price, status)
+            
+            # Обновляем заказ с дополнительными данными
+            if size or alumochrome is not None or photo_file_id or suspensia_type or quantity != 1 or spraying_deep or spraying_shallow or painter_70_id or painter_30_id:
+                update_fields = []
+                update_values = []
+                param_count = 1
+                
+                if size:
+                    update_fields.append(f"size = ${param_count}")
+                    update_values.append(size)
+                    param_count += 1
+                
+                if alumochrome is not None:
+                    update_fields.append(f"alumochrome = ${param_count}")
+                    update_values.append(alumochrome)
+                    param_count += 1
+                
+                if photo_file_id:
+                    update_fields.append(f"photo_file_id = ${param_count}")
+                    update_values.append(photo_file_id)
+                    param_count += 1
+                
+                if suspensia_type:
+                    update_fields.append(f"suspensia_type = ${param_count}")
+                    update_values.append(suspensia_type)
+                    param_count += 1
+                
+                if quantity != 1:
+                    update_fields.append(f"quantity = ${param_count}")
+                    update_values.append(quantity)
+                    param_count += 1
+                
+                if spraying_deep:
+                    update_fields.append(f"spraying_deep = ${param_count}")
+                    update_values.append(spraying_deep)
+                    param_count += 1
+                
+                if spraying_shallow:
+                    update_fields.append(f"spraying_shallow = ${param_count}")
+                    update_values.append(spraying_shallow)
+                    param_count += 1
+                
+                if painter_70_id:
+                    update_fields.append(f"painter_70_id = ${param_count}")
+                    update_values.append(painter_70_id)
+                    param_count += 1
+                
+                if painter_30_id:
+                    update_fields.append(f"painter_30_id = ${param_count}")
+                    update_values.append(painter_30_id)
+                    param_count += 1
+                
+                if update_fields:
+                    update_values.append(order_id)
+                    await conn.execute(f"""
+                        UPDATE orders SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ${param_count}
+                    """, *update_values)
             return order_id
 
     async def update_order_status(self, order_id: int, status: str):
