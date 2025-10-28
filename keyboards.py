@@ -22,7 +22,7 @@ def get_main_menu_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def get_set_type_keyboard() -> InlineKeyboardMarkup:
+def get_set_type_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     """Клавиатура для выбора типа заказа"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🔹 Один диск", callback_data="set_type_single"))
@@ -30,7 +30,36 @@ def get_set_type_keyboard() -> InlineKeyboardMarkup:
     builder.add(InlineKeyboardButton(text="🔸 Насадки", callback_data="set_type_nakidka"))
     builder.add(InlineKeyboardButton(text="🔸 Супорта", callback_data="set_type_suspensia"))
     builder.add(InlineKeyboardButton(text="🆓 Свободный заказ", callback_data="set_type_free"))
+    
+    # Добавляем тип 70/30 только для маляров
+    if profession == "painter":
+        builder.add(InlineKeyboardButton(text="🎨 70/30", callback_data="set_type_70_30"))
+    
     builder.adjust(2)
+    return builder.as_markup()
+
+def get_70_30_type_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора типа заказа 70/30"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🔹 Один диск", callback_data="70_30_type_single"))
+    builder.add(InlineKeyboardButton(text="🔹 Комплект", callback_data="70_30_type_set"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+async def get_painters_selection_keyboard(db) -> InlineKeyboardMarkup:
+    """Клавиатура для выбора маляров (70% и 30%)"""
+    builder = InlineKeyboardBuilder()
+    
+    # Получаем всех маляров из базы данных
+    painters = await db.get_all_painters()
+    
+    for painter in painters:
+        builder.add(InlineKeyboardButton(
+            text=f"🎨 {painter['name']} (@{painter.get('username', 'no_username')})",
+            callback_data=f"painter_{painter['tg_id']}"
+        ))
+    
+    builder.adjust(1)
     return builder.as_markup()
 
 def get_size_keyboard() -> InlineKeyboardMarkup:

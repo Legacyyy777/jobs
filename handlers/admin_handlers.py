@@ -24,6 +24,13 @@ def get_order_type_text(order: dict) -> str:
         return f"супорта ({quantity} шт.)"
     elif set_type == 'free':
         return "свободный заказ"
+    elif set_type.startswith('70_30_'):
+        disk_type = set_type.split('_')[2]  # single или set
+        if disk_type == 'single':
+            quantity = order.get('disk_quantity', 1)
+            return f"70/30 один диск ({quantity} шт.)"
+        else:
+            return "70/30 комплект"
     else:
         return set_type
 
@@ -94,15 +101,62 @@ async def admin_confirm_order(callback: CallbackQuery):
     # Уведомляем пользователя (маляра или пескоструйщика)
     try:
         profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
-        await callback.bot.send_message(
-            chat_id=order["tg_id"],
-            text=f"✅ <b>Заказ подтвержден!</b>\n\n"
-                 f"📋 Номер: {order['order_number']}\n"
-                 f"💰 Сумма: {order['price']:,} руб.\n\n"
-                 f"Спасибо за работу!",
-            parse_mode="HTML"
-        )
-        logging.info(f"✅ УВЕДОМЛЕНИЕ ОТПРАВЛЕНО | {profession_text} | ID: {order['tg_id']} | №{order['order_number']} | {order['price']}₽")
+        
+        # Для заказов 70/30 отправляем уведомления обоим малярам
+        if order['set_type'].startswith('70_30_'):
+            painter_70_id = order.get('painter_70_id')
+            painter_30_id = order.get('painter_30_id')
+            
+            if painter_70_id and painter_30_id:
+                # Получаем имена маляров
+                painter_70_name = await db.get_user_name_by_id(painter_70_id)
+                painter_30_name = await db.get_user_name_by_id(painter_30_id)
+                total_price = order.get('price', 0)
+                price_70 = int(total_price * 0.7)
+                price_30 = int(total_price * 0.3)
+                
+                # Уведомляем маляра 70%
+                try:
+                    await callback.bot.send_message(
+                        chat_id=painter_70_id,
+                        text=f"✅ <b>Заказ 70/30 подтвержден!</b>\n\n"
+                             f"📋 Номер: {order['order_number']}\n"
+                             f"💰 Ваша сумма: {price_70:,} руб. (70%)\n"
+                             f"🎨 Вы: подготовка и покраска\n"
+                             f"👤 Коллега: {painter_30_name} (30%)\n\n"
+                             f"Спасибо за работу!",
+                        parse_mode="HTML"
+                    )
+                    logging.info(f"✅ УВЕДОМЛЕНИЕ ОТПРАВЛЕНО | Маляр 70% | ID: {painter_70_id} | №{order['order_number']} | {price_70}₽")
+                except Exception as e:
+                    logging.error(f"Ошибка отправки уведомления маляру 70%: {e}")
+                
+                # Уведомляем маляра 30%
+                try:
+                    await callback.bot.send_message(
+                        chat_id=painter_30_id,
+                        text=f"✅ <b>Заказ 70/30 подтвержден!</b>\n\n"
+                             f"📋 Номер: {order['order_number']}\n"
+                             f"💰 Ваша сумма: {price_30:,} руб. (30%)\n"
+                             f"🎨 Вы: покрытие лаком\n"
+                             f"👤 Коллега: {painter_70_name} (70%)\n\n"
+                             f"Спасибо за работу!",
+                        parse_mode="HTML"
+                    )
+                    logging.info(f"✅ УВЕДОМЛЕНИЕ ОТПРАВЛЕНО | Маляр 30% | ID: {painter_30_id} | №{order['order_number']} | {price_30}₽")
+                except Exception as e:
+                    logging.error(f"Ошибка отправки уведомления маляру 30%: {e}")
+        else:
+            # Обычное уведомление для обычных заказов
+            await callback.bot.send_message(
+                chat_id=order["tg_id"],
+                text=f"✅ <b>Заказ подтвержден!</b>\n\n"
+                     f"📋 Номер: {order['order_number']}\n"
+                     f"💰 Сумма: {order['price']:,} руб.\n\n"
+                     f"Спасибо за работу!",
+                parse_mode="HTML"
+            )
+            logging.info(f"✅ УВЕДОМЛЕНИЕ ОТПРАВЛЕНО | {profession_text} | ID: {order['tg_id']} | №{order['order_number']} | {order['price']}₽")
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления пользователю: {e}")
     
@@ -121,7 +175,7 @@ async def admin_confirm_order(callback: CallbackQuery):
     )
     
     # Добавляем размер и алюмохром только для дисков
-    if order['set_type'] in ['single', 'set']:
+    if order['set_type'] in ['single', 'set'] or order['set_type'].startswith('70_30_'):
         caption_text += f"📏 <b>Размер:</b> {order['size']}\n"
         caption_text += f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
     
@@ -180,14 +234,48 @@ async def admin_reject_order(callback: CallbackQuery):
     # Уведомляем пользователя (маляра или пескоструйщика)
     try:
         profession_text = "🎨 Маляр" if order.get('profession') == 'painter' else "💨 Пескоструйщик"
-        await callback.bot.send_message(
-            chat_id=order["tg_id"],
-            text=f"❌ <b>Заказ отклонен</b>\n\n"
-                 f"📋 Номер: {order['order_number']}\n\n"
-                 f"Обратитесь к администратору для уточнения деталей.",
-            parse_mode="HTML"
-        )
-        logging.info(f"❌ УВЕДОМЛЕНИЕ ОБ ОТКЛОНЕНИИ | {profession_text} | ID: {order['tg_id']} | №{order['order_number']}")
+        
+        # Для заказов 70/30 отправляем уведомления обоим малярам
+        if order['set_type'].startswith('70_30_'):
+            painter_70_id = order.get('painter_70_id')
+            painter_30_id = order.get('painter_30_id')
+            
+            if painter_70_id and painter_30_id:
+                # Уведомляем маляра 70%
+                try:
+                    await callback.bot.send_message(
+                        chat_id=painter_70_id,
+                        text=f"❌ <b>Заказ 70/30 отклонен</b>\n\n"
+                             f"📋 Номер: {order['order_number']}\n\n"
+                             f"Обратитесь к администратору для уточнения деталей.",
+                        parse_mode="HTML"
+                    )
+                    logging.info(f"❌ УВЕДОМЛЕНИЕ ОБ ОТКЛОНЕНИИ | Маляр 70% | ID: {painter_70_id} | №{order['order_number']}")
+                except Exception as e:
+                    logging.error(f"Ошибка отправки уведомления маляру 70%: {e}")
+                
+                # Уведомляем маляра 30%
+                try:
+                    await callback.bot.send_message(
+                        chat_id=painter_30_id,
+                        text=f"❌ <b>Заказ 70/30 отклонен</b>\n\n"
+                             f"📋 Номер: {order['order_number']}\n\n"
+                             f"Обратитесь к администратору для уточнения деталей.",
+                        parse_mode="HTML"
+                    )
+                    logging.info(f"❌ УВЕДОМЛЕНИЕ ОБ ОТКЛОНЕНИИ | Маляр 30% | ID: {painter_30_id} | №{order['order_number']}")
+                except Exception as e:
+                    logging.error(f"Ошибка отправки уведомления маляру 30%: {e}")
+        else:
+            # Обычное уведомление для обычных заказов
+            await callback.bot.send_message(
+                chat_id=order["tg_id"],
+                text=f"❌ <b>Заказ отклонен</b>\n\n"
+                     f"📋 Номер: {order['order_number']}\n\n"
+                     f"Обратитесь к администратору для уточнения деталей.",
+                parse_mode="HTML"
+            )
+            logging.info(f"❌ УВЕДОМЛЕНИЕ ОБ ОТКЛОНЕНИИ | {profession_text} | ID: {order['tg_id']} | №{order['order_number']}")
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления об отклонении: {e}")
     
@@ -206,7 +294,7 @@ async def admin_reject_order(callback: CallbackQuery):
     )
     
     # Добавляем размер и алюмохром только для дисков
-    if order['set_type'] in ['single', 'set']:
+    if order['set_type'] in ['single', 'set'] or order['set_type'].startswith('70_30_'):
         caption_text += f"📏 <b>Размер:</b> {order['size']}\n"
         caption_text += f"✨ <b>Алюмохром:</b> {'Да' if order['alumochrome'] else 'Нет'}\n"
     

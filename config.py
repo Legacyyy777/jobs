@@ -109,7 +109,7 @@ class Config:
     
     # Цены для пескоструйщика - другие типы
     PRICE_SANDBLASTER_NAKIDKA = int(os.getenv('PRICE_SANDBLASTER_NAKIDKA', 150))  # Насадки
-    PRICE_SANDBLASTER_SUSPENSIA = int(os.getenv('PRICE_SANDBLASTER_SUSPENSIA', 305))  # Супорта за штуку
+    PRICE_SANDBLASTER_SUSPENSIA = int(os.getenv('PRICE_SANDBLASTER_SUSPENSIA', 350))  # Супорта за штуку
     
     # Цены за напыление для пескоструйщика
     PRICE_SPRAYING_DEEP = int(os.getenv('PRICE_SPRAYING_DEEP', 537))  # Глубокое напыление

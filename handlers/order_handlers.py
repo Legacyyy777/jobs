@@ -10,7 +10,9 @@ from handlers.fsm import OrderStates, UserStates
 from keyboards import (
     get_main_menu_keyboard,
     get_set_type_keyboard, 
-    get_size_keyboard, 
+    get_70_30_type_keyboard,
+    get_painters_selection_keyboard,
+    get_size_keyboard,
     get_alumochrome_keyboard,
     get_suspensia_type_keyboard,
     get_cancel_keyboard,
@@ -203,8 +205,77 @@ def calculate_price(profession: str, set_type: str, size: str = None, alumochrom
             # Добавляем доплату за подготовку
             base_price += config.PRICE_PREP_SET
         
+        elif set_type.startswith("70_30_"):
+            # Обработка типа 70/30 - используем те же цены что и обычные диски
+            disk_type = set_type.split("_")[2]  # single или set
+            
+            if disk_type == "single":
+                if size == "R12":
+                    base_price = config.PRICE_SINGLE_R12
+                elif size == "R13":
+                    base_price = config.PRICE_SINGLE_R13
+                elif size == "R14":
+                    base_price = config.PRICE_SINGLE_R14
+                elif size == "R15":
+                    base_price = config.PRICE_SINGLE_R15
+                elif size == "R16":
+                    base_price = config.PRICE_SINGLE_R16
+                elif size == "R17":
+                    base_price = config.PRICE_SINGLE_R17
+                elif size == "R18":
+                    base_price = config.PRICE_SINGLE_R18
+                elif size == "R19":
+                    base_price = config.PRICE_SINGLE_R19
+                elif size == "R20":
+                    base_price = config.PRICE_SINGLE_R20
+                elif size == "R21":
+                    base_price = config.PRICE_SINGLE_R21
+                elif size == "R22":
+                    base_price = config.PRICE_SINGLE_R22
+                elif size == "R23":
+                    base_price = config.PRICE_SINGLE_R23
+                elif size == "R24":
+                    base_price = config.PRICE_SINGLE_R24
+                
+                # Добавляем доплату за подготовку
+                base_price += config.PRICE_PREP_SINGLE
+                
+                # Умножаем на количество дисков
+                base_price = base_price * quantity
+            
+            elif disk_type == "set":
+                if size == "R12":
+                    base_price = config.PRICE_SET_R12
+                elif size == "R13":
+                    base_price = config.PRICE_SET_R13
+                elif size == "R14":
+                    base_price = config.PRICE_SET_R14
+                elif size == "R15":
+                    base_price = config.PRICE_SET_R15
+                elif size == "R16":
+                    base_price = config.PRICE_SET_R16
+                elif size == "R17":
+                    base_price = config.PRICE_SET_R17
+                elif size == "R18":
+                    base_price = config.PRICE_SET_R18
+                elif size == "R19":
+                    base_price = config.PRICE_SET_R19
+                elif size == "R20":
+                    base_price = config.PRICE_SET_R20
+                elif size == "R21":
+                    base_price = config.PRICE_SET_R21
+                elif size == "R22":
+                    base_price = config.PRICE_SET_R22
+                elif size == "R23":
+                    base_price = config.PRICE_SET_R23
+                elif size == "R24":
+                    base_price = config.PRICE_SET_R24
+                
+                # Добавляем доплату за подготовку
+                base_price += config.PRICE_PREP_SET
+        
         # Добавляем доплату за алюмохром (только для дисков маляра)
-        if alumochrome and set_type in ["single", "set"]:
+        if alumochrome and set_type in ["single", "set"] or set_type.startswith("70_30_"):
             base_price += config.PRICE_ALUMOCHROME_EXTRA
     
     logging.info(f"💰 Итоговая цена: {base_price}₽")
@@ -457,7 +528,7 @@ async def process_order_number(message: Message, state: FSMContext):
         "📋 <b>Номер заказа:</b> {}\n\n"
         "Выберите тип заказа:".format(order_number),
         parse_mode="HTML",
-        reply_markup=get_set_type_keyboard()
+        reply_markup=get_set_type_keyboard(user_profession)
     )
     
     await state.set_state(OrderStates.waiting_for_set_type)
@@ -465,7 +536,7 @@ async def process_order_number(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("set_type_"), StateFilter(OrderStates.waiting_for_set_type))
 async def process_set_type(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора типа заказа"""
-    set_type = callback.data.split("_")[2]  # single, set, nakidka, suspensia
+    set_type = callback.data.split("_")[2]  # single, set, nakidka, suspensia, 70_30
     
     await state.update_data(set_type=set_type)
     
@@ -512,6 +583,16 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         return
         
+    elif set_type == "70_30":
+        # Для типа 70/30 сначала выбираем один диск или комплект
+        text = "🎨 <b>70/30</b>\n\nВыберите тип заказа:"
+        keyboard = get_70_30_type_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_70_30_type)
+        await callback.answer()
+        return
+        
     else:
         # Для дисков (single/set) проверяем тип
         if set_type == "single":
@@ -533,6 +614,30 @@ async def process_set_type(callback: CallbackQuery, state: FSMContext):
             await state.set_state(OrderStates.waiting_for_size)
         
         await callback.answer()
+
+@router.callback_query(F.data.startswith("70_30_type_"), StateFilter(OrderStates.waiting_for_70_30_type))
+async def process_70_30_type(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора типа заказа 70/30 (один диск или комплект)"""
+    type_choice = callback.data.split("_")[3]  # single или set
+    
+    await state.update_data(set_type=f"70_30_{type_choice}")
+    
+    if type_choice == "single":
+        # Для одиночных дисков сначала спрашиваем количество
+        text = "🎨 <b>70/30 - Один диск</b>\n\nВведите количество дисков:"
+        keyboard = get_cancel_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_disk_quantity)
+    else:
+        # Для комплектов выбираем размер
+        text = "🎨 <b>70/30 - Комплект</b>\n\nВыберите размер диска:"
+        keyboard = get_size_keyboard()
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_size)
+    
+    await callback.answer()
 
 @router.message(StateFilter(OrderStates.waiting_for_disk_quantity))
 async def process_disk_quantity(message: Message, state: FSMContext):
@@ -792,7 +897,9 @@ async def create_order_from_message_data(message: Message, state: FSMContext):
             quantity=data.get("quantity", 1),
             spraying_deep=data.get("spraying_deep", 0),
             spraying_shallow=data.get("spraying_shallow", 0),
-            status=status
+            status=status,
+            painter_70_id=data.get("painter_70"),
+            painter_30_id=data.get("painter_30")
         )
         
         # Красивое логирование создания заказа
@@ -873,6 +980,13 @@ def get_set_type_text(set_type: str, data: dict) -> str:
                 profession_text = f"супорта ({quantity} шт.)"
     elif set_type == "free":
         profession_text = "свободный заказ"
+    elif set_type.startswith("70_30_"):
+        disk_type = set_type.split("_")[2]  # single или set
+        if disk_type == "single":
+            quantity = data.get("disk_quantity", 1)
+            profession_text = f"70/30 один диск ({quantity} шт.)"
+        else:
+            profession_text = "70/30 комплект"
     else:
         profession_text = set_type
     
@@ -910,8 +1024,43 @@ async def process_alumochrome(callback: CallbackQuery, state: FSMContext):
     # Сохраняем данные
     await state.update_data(alumochrome=alumochrome, price=price)
     
+    # Проверяем, нужно ли выбирать маляров для типа 70/30
+    if set_type.startswith("70_30_"):
+        # Для типа 70/30 переходим к выбору маляров
+        text = "🎨 <b>Выберите маляра (70%):</b>\n\nТот, кто подготавливает и красит диск"
+        keyboard = await get_painters_selection_keyboard(db)
+        
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(OrderStates.waiting_for_painter_selection)
+        await callback.answer()
+        return
+    
     # Создаем заказ
     await create_order_from_data(callback, state)
+
+@router.callback_query(F.data.startswith("painter_"), StateFilter(OrderStates.waiting_for_painter_selection))
+async def process_painter_selection(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора маляра для типа 70/30"""
+    painter_id = int(callback.data.split("_")[1])
+    
+    data = await state.get_data()
+    
+    # Проверяем, выбираем ли первого маляра (70%) или второго (30%)
+    if "painter_70" not in data:
+        # Выбираем первого маляра (70%)
+        await state.update_data(painter_70=painter_id)
+        
+        text = "🎨 <b>Выберите маляра (30%):</b>\n\nТот, кто только покрывает лаком"
+        keyboard = await get_painters_selection_keyboard(db)
+        
+        await safe_edit_message(callback, text, keyboard)
+        await callback.answer("✅ Первый маляр выбран")
+    else:
+        # Выбираем второго маляра (30%)
+        await state.update_data(painter_30=painter_id)
+        
+        # Создаем заказ
+        await create_order_from_data(callback, state)
 
 async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
     """Создает заказ из данных состояния"""
@@ -952,7 +1101,9 @@ async def create_order_from_data(callback: CallbackQuery, state: FSMContext):
             quantity=data.get("quantity", 1),
             spraying_deep=data.get("spraying_deep", 0),
             spraying_shallow=data.get("spraying_shallow", 0),
-            status=status
+            status=status,
+            painter_70_id=data.get("painter_70"),
+            painter_30_id=data.get("painter_30")
         )
         
         # Красивое логирование создания заказа
@@ -1029,7 +1180,7 @@ async def process_overwrite_order(callback: CallbackQuery, state: FSMContext):
         text = (f"✅ <b>Старый заказ удален!</b>\n\n"
                 f"📋 <b>Номер заказа:</b> {order_number}\n\n"
                 f"Выберите тип заказа:")
-        keyboard = get_set_type_keyboard()
+        keyboard = get_set_type_keyboard(user_profession)
         
         await safe_edit_message(callback, text, keyboard)
         
@@ -1099,6 +1250,13 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
                 set_type_text = f"супорта ({quantity} шт.)"
     elif set_type == "free":
         set_type_text = "свободный заказ"
+    elif set_type.startswith("70_30_"):
+        disk_type = set_type.split("_")[2]  # single или set
+        if disk_type == "single":
+            quantity = order_data.get("disk_quantity", 1)
+            set_type_text = f"70/30 один диск ({quantity} шт.)"
+        else:
+            set_type_text = "70/30 комплект"
     else:
         set_type_text = set_type
     
@@ -1117,7 +1275,7 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
     )
     
     # Добавляем дополнительную информацию только для дисков
-    if order_data.get("set_type") in ["single", "set"]:
+    if order_data.get("set_type") in ["single", "set"] or order_data.get("set_type", "").startswith("70_30_"):
         size = order_data.get('size', 'Не указан')
         text += f"\n📏 <b>Размер:</b> {size}"
         
@@ -1125,6 +1283,21 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
             # Для маляра показываем алюмохром
             alumochrome_text = "Да" if order_data.get("alumochrome", False) else "Нет"
             text += f"\n✨ <b>Алюмохром:</b> {alumochrome_text}"
+            
+            # Для типа 70/30 показываем разделение дохода
+            if order_data.get("set_type", "").startswith("70_30_"):
+                painter_70_id = order_data.get("painter_70_id")
+                painter_30_id = order_data.get("painter_30_id")
+                if painter_70_id and painter_30_id:
+                    # Получаем имена маляров
+                    painter_70_name = await db.get_user_name_by_id(painter_70_id)
+                    painter_30_name = await db.get_user_name_by_id(painter_30_id)
+                    total_price = order_data.get('price', 0)
+                    price_70 = int(total_price * 0.7)
+                    price_30 = int(total_price * 0.3)
+                    text += f"\n🎨 <b>Разделение дохода:</b>\n"
+                    text += f"   • {painter_70_name}: {price_70:,} руб. (70%)\n"
+                    text += f"   • {painter_30_name}: {price_30:,} руб. (30%)"
         else:
             # Для пескоструйщика показываем напыление
             spraying_deep = order_data.get("spraying_deep", 0)

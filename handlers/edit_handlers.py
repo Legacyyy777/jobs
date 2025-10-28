@@ -46,7 +46,7 @@ async def safe_edit_message(callback: CallbackQuery, text: str, keyboard: Inline
             logging.warning(f"Failed to edit message: {e}")
     # Если содержимое не изменилось, ничего не делаем
 
-def format_order_info(order: dict) -> str:
+async def format_order_info(order: dict) -> str:
     """Форматирует информацию о заказе с учетом профессии"""
     profession = order.get('profession', 'painter')
     
@@ -61,6 +61,13 @@ def format_order_info(order: dict) -> str:
         set_type_text = "супорта"
     elif order['set_type'] == 'free':
         set_type_text = "свободный заказ"
+    elif order['set_type'].startswith('70_30_'):
+        disk_type = order['set_type'].split('_')[2]  # single или set
+        if disk_type == 'single':
+            quantity = order.get('disk_quantity', 1)
+            set_type_text = f"70/30 один диск ({quantity} шт.)"
+        else:
+            set_type_text = "70/30 комплект"
     else:
         set_type_text = order['set_type']
     
@@ -84,15 +91,31 @@ def format_order_info(order: dict) -> str:
     )
     
     # Добавляем размер только для дисков
-    if order['set_type'] in ['single', 'set'] and order['size']:
-        text += f"📏 <b>Размер:</b> {order['size']}\n"
+    if order['set_type'] in ['single', 'set'] or order['set_type'].startswith('70_30_'):
+        if order['size']:
+            text += f"📏 <b>Размер:</b> {order['size']}\n"
     
     # Добавляем информацию в зависимости от профессии
     if profession == "painter":
         # Для маляра показываем алюмохром (только для дисков)
-        if order['set_type'] in ['single', 'set']:
+        if order['set_type'] in ['single', 'set'] or order['set_type'].startswith('70_30_'):
             alumochrome_text = "Да" if order['alumochrome'] else "Нет"
             text += f"✨ <b>Алюмохром:</b> {alumochrome_text}\n"
+            
+            # Для типа 70/30 показываем разделение дохода
+            if order['set_type'].startswith('70_30_'):
+                painter_70_id = order.get('painter_70_id')
+                painter_30_id = order.get('painter_30_id')
+                if painter_70_id and painter_30_id:
+                    # Получаем имена маляров
+                    painter_70_name = await db.get_user_name_by_id(painter_70_id)
+                    painter_30_name = await db.get_user_name_by_id(painter_30_id)
+                    total_price = order.get('price', 0)
+                    price_70 = int(total_price * 0.7)
+                    price_30 = int(total_price * 0.3)
+                    text += f"🎨 <b>Разделение дохода:</b>\n"
+                    text += f"   • {painter_70_name}: {price_70:,} руб. (70%)\n"
+                    text += f"   • {painter_30_name}: {price_30:,} руб. (30%)\n"
         
         # Для супортов маляра показываем тип
         elif order['set_type'] == 'suspensia':
@@ -175,7 +198,7 @@ async def show_my_orders(callback: CallbackQuery, page: int = 0):
     else:
         text = f"📋 <b>Ваши заказы (стр. {page + 1}):</b>\n\n"
         for i, order in enumerate(orders, 1):
-            text += f"{i}. {format_order_info(order)}\n\n"
+            text += f"{i}. {await format_order_info(order)}\n\n"
         text = text[:4000]  # Ограничиваем длину сообщения
         # Создаем клавиатуру с кнопками для каждого заказа и пагинацией
         keyboard = get_my_orders_keyboard(orders, page, total_count)
@@ -203,7 +226,7 @@ async def show_my_orders_page(callback: CallbackQuery):
     else:
         text = f"📋 <b>Ваши заказы (стр. {page + 1}):</b>\n\n"
         for i, order in enumerate(orders, 1):
-            text += f"{i}. {format_order_info(order)}\n\n"
+            text += f"{i}. {await format_order_info(order)}\n\n"
         text = text[:4000]  # Ограничиваем длину сообщения
         # Создаем клавиатуру с кнопками для каждого заказа и пагинацией
         keyboard = get_my_orders_keyboard(orders, page, total_count)

@@ -231,6 +231,11 @@ class Database:
                     await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS reminder_message_id BIGINT")
                     logger.info("✅ Миграция: добавлены колонки для системы напоминаний")
                     
+                    # Миграция для типа заказа 70/30
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS painter_70_id INTEGER REFERENCES users(id)")
+                    await conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS painter_30_id INTEGER REFERENCES users(id)")
+                    logger.info("✅ Миграция: добавлены колонки для маляров в заказах 70/30")
+                    
                     # Удаляем поле profession из таблицы orders, если оно существует
                     try:
                         await conn.execute("ALTER TABLE orders DROP COLUMN IF EXISTS profession")
@@ -315,13 +320,14 @@ class Database:
     async def create_order(self, order_number: str, user_id: int, set_type: str, 
                           size: str = None, alumochrome: bool = False, price: int = 0, 
                           photo_file_id: str = None, suspensia_type: str = None, quantity: int = 1,
-                          spraying_deep: int = 0, spraying_shallow: int = 0, status: str = 'draft') -> int:
+                          spraying_deep: int = 0, spraying_shallow: int = 0, status: str = 'draft',
+                          painter_70_id: int = None, painter_30_id: int = None) -> int:
         """Создает новый заказ"""
         async with self.pool.acquire() as conn:
             order_id = await conn.fetchval("""
-                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
-            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status)
+                INSERT INTO orders (order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id
+            """, order_number, user_id, set_type, size, alumochrome, price, photo_file_id, suspensia_type, quantity, spraying_deep, spraying_shallow, status, painter_70_id, painter_30_id)
             return order_id
 
     async def update_order_status(self, order_id: int, status: str):
@@ -354,15 +360,40 @@ class Database:
         end_utc = end_local.astimezone(ZoneInfo("UTC"))
 
         async with self.pool.acquire() as conn:
-            result = await conn.fetchval("""
+            # Получаем заработок от обычных заказов
+            regular_earnings = await conn.fetchval("""
                 SELECT COALESCE(SUM(price), 0)
                 FROM orders
                 WHERE user_id = $1
                   AND status = 'confirmed'
                   AND (created_at AT TIME ZONE 'UTC') >= $2
                   AND (created_at AT TIME ZONE 'UTC') <  $3
-            """, user_id, start_utc, end_utc)
-            return result or 0
+                  AND set_type NOT LIKE '70_30_%'
+            """, user_id, start_utc, end_utc) or 0
+            
+            # Получаем заработок от заказов 70/30 (70%)
+            earnings_70 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.7), 0)
+                FROM orders
+                WHERE painter_70_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_utc, end_utc) or 0
+            
+            # Получаем заработок от заказов 70/30 (30%)
+            earnings_30 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.3), 0)
+                FROM orders
+                WHERE painter_30_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_utc, end_utc) or 0
+            
+            return int(regular_earnings + earnings_70 + earnings_30)
 
     async def get_user_earnings_month(self, user_id: int) -> int:
         """Получает заработок пользователя за текущий месяц (по часовому поясу Уфы)"""
@@ -375,15 +406,40 @@ class Database:
         end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
 
         async with self.pool.acquire() as conn:
-            result = await conn.fetchval("""
+            # Получаем заработок от обычных заказов
+            regular_earnings = await conn.fetchval("""
                 SELECT COALESCE(SUM(price), 0)
                 FROM orders
                 WHERE user_id = $1
                   AND status = 'confirmed'
                   AND (created_at AT TIME ZONE 'UTC') >= $2
                   AND (created_at AT TIME ZONE 'UTC') <  $3
-            """, user_id, start_month_utc, end_month_utc)
-            return result or 0
+                  AND set_type NOT LIKE '70_30_%'
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            # Получаем заработок от заказов 70/30 (70%)
+            earnings_70 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.7), 0)
+                FROM orders
+                WHERE painter_70_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            # Получаем заработок от заказов 70/30 (30%)
+            earnings_30 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.3), 0)
+                FROM orders
+                WHERE painter_30_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            return int(regular_earnings + earnings_70 + earnings_30)
 
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""
@@ -396,24 +452,49 @@ class Database:
         end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
 
         async with self.pool.acquire() as conn:
-            # Получаем общий заработок за месяц
-            total_earnings = await conn.fetchval("""
+            # Получаем общий заработок за месяц (обычные заказы + 70/30)
+            regular_earnings = await conn.fetchval("""
                 SELECT COALESCE(SUM(price), 0)
                 FROM orders
                 WHERE user_id = $1
                   AND status = 'confirmed'
                   AND (created_at AT TIME ZONE 'UTC') >= $2
                   AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type NOT LIKE '70_30_%'
             """, user_id, start_month_utc, end_month_utc) or 0
+            
+            earnings_70 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.7), 0)
+                FROM orders
+                WHERE painter_70_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            earnings_30 = await conn.fetchval("""
+                SELECT COALESCE(SUM(price * 0.3), 0)
+                FROM orders
+                WHERE painter_30_id = $1
+                  AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                  AND set_type LIKE '70_30_%'
+            """, user_id, start_month_utc, end_month_utc) or 0
+            
+            total_earnings = regular_earnings + earnings_70 + earnings_30
             
             # Получаем количество уникальных дней с заказами
             days_with_orders = await conn.fetchval("""
                 SELECT COUNT(DISTINCT DATE(created_at AT TIME ZONE 'UTC'))
-                FROM orders
-                WHERE user_id = $1
-                  AND status = 'confirmed'
-                  AND (created_at AT TIME ZONE 'UTC') >= $2
-                  AND (created_at AT TIME ZONE 'UTC') <  $3
+                FROM (
+                    SELECT created_at FROM orders WHERE user_id = $1 AND status = 'confirmed' AND (created_at AT TIME ZONE 'UTC') >= $2 AND (created_at AT TIME ZONE 'UTC') < $3 AND set_type NOT LIKE '70_30_%'
+                    UNION ALL
+                    SELECT created_at FROM orders WHERE painter_70_id = $1 AND status = 'confirmed' AND (created_at AT TIME ZONE 'UTC') >= $2 AND (created_at AT TIME ZONE 'UTC') < $3 AND set_type LIKE '70_30_%'
+                    UNION ALL
+                    SELECT created_at FROM orders WHERE painter_30_id = $1 AND status = 'confirmed' AND (created_at AT TIME ZONE 'UTC') >= $2 AND (created_at AT TIME ZONE 'UTC') < $3 AND set_type LIKE '70_30_%'
+                ) AS all_orders
             """, user_id, start_month_utc, end_month_utc) or 0
             
             # Возвращаем 0 если не было заказов, иначе средний заработок
@@ -465,13 +546,13 @@ class Database:
             return result.split()[-1] == "1"  # Проверяем, что была удалена 1 запись
 
     async def get_user_orders(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
-        """Получает только заказы конкретного пользователя"""
+        """Получает заказы пользователя (включая заказы 70/30)"""
         async with self.pool.acquire() as conn:
-            # Получаем только заказы конкретного пользователя
+            # Получаем заказы пользователя (обычные + где он участвует в 70/30)
             orders = await conn.fetch("""
                 SELECT o.*, u.profession FROM orders o
                 JOIN users u ON o.user_id = u.id
-                WHERE o.user_id = $1
+                WHERE o.user_id = $1 OR o.painter_70_id = $1 OR o.painter_30_id = $1
                 ORDER BY o.created_at DESC 
                 LIMIT $2
             """, user_id, limit)
@@ -548,22 +629,22 @@ class Database:
             return dict(order) if order else None
     
     async def get_user_orders_paginated(self, user_id: int, limit: int = 5, offset: int = 0) -> List[Dict[str, Any]]:
-        """Получает заказы пользователя с пагинацией"""
+        """Получает заказы пользователя с пагинацией (включая заказы 70/30)"""
         async with self.pool.acquire() as conn:
             orders = await conn.fetch("""
                 SELECT o.*, u.profession FROM orders o
                 JOIN users u ON o.user_id = u.id
-                WHERE o.user_id = $1
+                WHERE o.user_id = $1 OR o.painter_70_id = $1 OR o.painter_30_id = $1
                 ORDER BY o.created_at DESC 
                 LIMIT $2 OFFSET $3
             """, user_id, limit, offset)
             return [dict(order) for order in orders]
 
     async def get_user_orders_total_count(self, user_id: int) -> int:
-        """Получает общее количество заказов пользователя"""
+        """Получает общее количество заказов пользователя (включая заказы 70/30)"""
         async with self.pool.acquire() as conn:
             result = await conn.fetchval(
-                "SELECT COUNT(*) FROM orders WHERE user_id = $1", user_id
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1 OR painter_70_id = $1 OR painter_30_id = $1", user_id
             )
             return result or 0
     
@@ -605,6 +686,25 @@ class Database:
                 order_id
             )
             return result
+
+    async def get_all_painters(self) -> List[Dict[str, Any]]:
+        """Получает всех маляров из базы данных"""
+        async with self.pool.acquire() as conn:
+            painters = await conn.fetch("""
+                SELECT tg_id, name, username
+                FROM users
+                WHERE profession = 'painter'
+            """)
+            return [dict(painter) for painter in painters]
+
+    async def get_user_name_by_id(self, user_id: int) -> Optional[str]:
+        """Получает имя пользователя по ID"""
+        async with self.pool.acquire() as conn:
+            user = await conn.fetchrow(
+                "SELECT name FROM users WHERE id = $1",
+                user_id
+            )
+            return user['name'] if user else None
 
 # Глобальный экземпляр базы данных
 db = Database()

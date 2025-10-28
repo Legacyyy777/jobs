@@ -2,7 +2,7 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -20,31 +20,28 @@ logger = logging.getLogger(__name__)
 
 # Используем функции из middleware для управления состоянием БД
 import random
-
-# Здесь будет подключен большой список приветствий
+from greetings import GREETING_MESSAGES
 
 async def send_daily_greeting_task(bot):
     """Задача для отправки ежедневного приветствия в 9:00"""
-    target_time = time(9, 0)  # 9:00 утра
-    
     while True:
         try:
             # Получаем текущее время
-            now = datetime.now().time()
+            now_datetime = datetime.now()
+            target_time = now_datetime.replace(hour=9, minute=0, second=0, microsecond=0)
             
-            # Проверяем, что уже 9:00 или позже
-            if now >= target_time:
-                # Если past 9:00, ждем до следующего дня
-                # Вычисляем секунды до следующего 9:00
-                now_datetime = datetime.now()
-                tomorrow = now_datetime.replace(hour=0, minute=0, second=0, microsecond=0) + asyncio.timedelta(days=1)
-                next_9am = tomorrow.replace(hour=9, minute=0, second=0)
-                wait_seconds = (next_9am - now_datetime).total_seconds()
-                
-                # Если сейчас уже позже 9:00, ждем до 9:00 следующего дня
-                await asyncio.sleep(wait_seconds)
+            # Если уже прошло 9:00 сегодня, ждем до завтра
+            if now_datetime >= target_time:
+                target_time += timedelta(days=1)
             
-            # Когда наступает 9:00, отправляем приветствие в группу
+            # Вычисляем секунды до следующего 9:00
+            wait_seconds = (target_time - now_datetime).total_seconds()
+            logger.info(f"⏰ Ожидание до следующего приветствия: {wait_seconds/3600:.1f} часов")
+            
+            # Ждем до 9:00
+            await asyncio.sleep(wait_seconds)
+            
+            # Отправляем приветствие в группу
             greeting = random.choice(GREETING_MESSAGES)
             
             if config.MODERATION_CHAT_ID:
@@ -58,13 +55,6 @@ async def send_daily_greeting_task(bot):
                     
                 except Exception as e:
                     logger.error(f"Ошибка при отправке приветствия в группу: {e}")
-            
-            # Ждем до следующего дня
-            now_datetime = datetime.now()
-            tomorrow = now_datetime.replace(hour=0, minute=0, second=0, microsecond=0) + asyncio.timedelta(days=1)
-            next_9am = tomorrow.replace(hour=9, minute=0, second=0)
-            wait_seconds = (next_9am - now_datetime).total_seconds()
-            await asyncio.sleep(wait_seconds)
             
         except Exception as e:
             logger.error(f"Ошибка в задаче отправки приветствий: {e}")
