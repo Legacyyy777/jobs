@@ -537,7 +537,12 @@ async def process_order_number(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("set_type_"), StateFilter(OrderStates.waiting_for_set_type))
 async def process_set_type(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора типа заказа"""
-    set_type = callback.data.split("_")[2]  # single, set, nakidka, suspensia, 70_30
+    # Для типа 70_30 нужно учитывать, что callback_data = "set_type_70_30"
+    callback_parts = callback.data.split("_")
+    if len(callback_parts) > 3 and callback_parts[2] == "70" and callback_parts[3] == "30":
+        set_type = "70_30"
+    else:
+        set_type = callback_parts[2]  # single, set, nakidka, suspensia
     
     # Для типа 70_30 не перезаписываем set_type, так как он уже установлен в process_70_30_type
     if set_type != "70_30":
