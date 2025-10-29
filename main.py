@@ -3,6 +3,7 @@ import logging
 import signal
 import sys
 from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -23,11 +24,12 @@ import random
 from greetings import GREETING_MESSAGES
 
 async def send_daily_greeting_task(bot):
-    """Задача для отправки ежедневного приветствия в 9:00"""
+    """Задача для отправки ежедневного приветствия в 9:00 по Уфе"""
     while True:
         try:
-            # Получаем текущее время
-            now_datetime = datetime.now()
+            # Используем Уфимское время (как в расчёте заработка)
+            tz = ZoneInfo("Asia/Yekaterinburg")
+            now_datetime = datetime.now(tz)
             target_time = now_datetime.replace(hour=9, minute=0, second=0, microsecond=0)
             
             # Если уже прошло 9:00 сегодня, ждем до завтра
@@ -36,7 +38,7 @@ async def send_daily_greeting_task(bot):
             
             # Вычисляем секунды до следующего 9:00
             wait_seconds = (target_time - now_datetime).total_seconds()
-            logger.info(f"⏰ Ожидание до следующего приветствия: {wait_seconds/3600:.1f} часов")
+            logger.info(f"⏰ Ожидание до следующего приветствия (9:00 по Уфе): {wait_seconds/3600:.1f} часов")
             
             # Ждем до 9:00
             await asyncio.sleep(wait_seconds)
