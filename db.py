@@ -258,6 +258,19 @@ class Database:
                     logger.warning(f"⚠️ Предупреждение при выполнении миграций: {e}")
                     pass
                 
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS earnings_adjustments (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        month_start DATE NOT NULL,
+                        prep_delta INTEGER NOT NULL,
+                        painting_delta INTEGER NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_earnings_adjustments_user_month ON earnings_adjustments(user_id, month_start)")
+                
                 # Индексы для оптимизации
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
@@ -512,6 +525,7 @@ class Database:
 
         total_decimal = Decimal(0)
         prep_decimal = Decimal(0)
+        painting_decimal = Decimal(0)
 
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("""
@@ -534,14 +548,20 @@ class Database:
                   AND (created_at AT TIME ZONE 'UTC') <  $3
             """, user_id, start_month_utc, end_month_utc)
 
+            adjustments = await conn.fetch("""
+                SELECT prep_delta, painting_delta
+                FROM earnings_adjustments
+                WHERE user_id = $1 AND month_start = $2
+            """, user_id, start_month_local.date())
+ 
         for row in rows:
             set_type = row["set_type"] or ""
             price = Decimal(row["price"] or 0)
             quantity = row["quantity"] or 1
-
+ 
             if price <= 0:
                 continue
-
+ 
             # Определяем долю пользователя в заказе
             share = Decimal(0)
             if set_type.startswith("70_30_"):
@@ -557,22 +577,27 @@ class Database:
                 if row["user_id"] != user_id:
                     continue
                 share = Decimal(1)
-
+ 
             order_total = price * share
             total_decimal += order_total
-
+ 
             base_type = set_type
             if set_type.startswith("70_30_"):
                 parts = set_type.split("_", 2)
                 base_type = parts[2] if len(parts) > 2 else ""
-
+ 
             prep_part = Decimal(0)
             if base_type == "single":
                 prep_part = Decimal(config.PRICE_PREP_SINGLE * max(quantity, 1))
             elif base_type == "set":
                 prep_part = Decimal(config.PRICE_PREP_SET * max(quantity, 1))
-
+ 
             prep_decimal += prep_part * share
+ 
+        for adj in adjustments:
+            prep_decimal += Decimal(adj['prep_delta'])
+            painting_decimal += Decimal(adj['painting_delta'])
+            total_decimal += Decimal(adj['prep_delta'] + adj['painting_delta'])
 
         total_int = int(total_decimal)
         prep_int = int(prep_decimal)
@@ -583,6 +608,47 @@ class Database:
             "prep": prep_int,
             "painting": painting_int
         }
+
+    async def add_earnings_adjustment(self, user_id: int, prep_delta: int, painting_delta: int, description: str):
+        """Добавляет корректировку заработка за текущий месяц"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        month_start = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).date()
+        created_at = now_local.replace(tzinfo=None)
+
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO earnings_adjustments (user_id, month_start, prep_delta, painting_delta, description, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                user_id,
+                month_start,
+                prep_delta,
+                painting_delta,
+                description,
+                created_at
+            )
+
+    async def get_earnings_adjustments_history(self, user_id: int) -> List[Dict[str, Any]]:
+        """Возвращает историю корректировок заработка за текущий месяц"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        month_start = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0).date()
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT prep_delta, painting_delta, description, created_at
+                FROM earnings_adjustments
+                WHERE user_id = $1 AND month_start = $2
+                ORDER BY created_at DESC, id DESC
+                """,
+                user_id,
+                month_start
+            )
+
+        return [dict(row) for row in rows]
 
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""

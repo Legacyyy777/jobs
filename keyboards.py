@@ -217,6 +217,34 @@ def get_spraying_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+def get_month_earnings_keyboard(profession: str = None) -> InlineKeyboardMarkup:
+    """Клавиатура для просмотра заработка за месяц"""
+    builder = InlineKeyboardBuilder()
+    if profession == "painter":
+        builder.add(InlineKeyboardButton(text="✏️ Редактировать заработок", callback_data="salary_edit_menu"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_salary_edit_menu_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура меню редактирования заработка"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="✏️ Редактировать", callback_data="salary_edit_start"))
+    builder.add(InlineKeyboardButton(text="🗂 История", callback_data="salary_edit_history"))
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="earnings_month"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_salary_edit_history_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для истории корректировок заработка"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="salary_edit_menu"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    return builder.as_markup()
+
 def get_salary_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     """Клавиатура раздела зарплаты"""
     builder = InlineKeyboardBuilder()

@@ -1,12 +1,13 @@
 import logging
 import re
+from zoneinfo import ZoneInfo
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, PhotoSize, InlineKeyboardMarkup
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 
-from handlers.fsm import OrderStates, UserStates
+from handlers.fsm import OrderStates, UserStates, EarningsStates
 from keyboards import (
     get_main_menu_keyboard,
     get_set_type_keyboard, 
@@ -16,6 +17,9 @@ from keyboards import (
     get_alumochrome_keyboard,
     get_suspensia_type_keyboard,
     get_salary_keyboard,
+    get_month_earnings_keyboard,
+    get_salary_edit_menu_keyboard,
+    get_salary_edit_history_keyboard,
     get_cancel_keyboard,
     get_back_to_menu_keyboard,
     get_start_keyboard,
@@ -426,30 +430,8 @@ async def show_earnings_day(callback: CallbackQuery):
 @router.callback_query(F.data == "earnings_month")
 async def show_earnings_month(callback: CallbackQuery):
     """Показать заработок за месяц"""
-    user_id = await db.get_or_create_user(
-        callback.from_user.id,
-        callback.from_user.full_name or callback.from_user.username or "Unknown"
-    )
-    
-    profession = await db.get_user_profession(callback.from_user.id)
-    
-    if profession == "painter":
-        breakdown = await db.get_user_earnings_month_breakdown(user_id)
-        earnings = breakdown["total"]
-        prep_earnings = breakdown["prep"]
-        painting_earnings = breakdown["painting"]
-    
-        text = (
-            f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб.\n\n"
-            f"🧼 <b>Подготовка:</b> {prep_earnings:,} руб.\n"
-            f"🎨 <b>Покраска:</b> {painting_earnings:,} руб."
-        )
-    else:
-        earnings = await db.get_user_earnings_month(user_id)
-        text = f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб."
-    keyboard = get_back_to_menu_keyboard()
-    
-    await safe_edit_message(callback, text, keyboard)
+    context = await build_month_earnings_context(callback.from_user)
+    await safe_edit_message(callback, context["text"], context["keyboard"])
     await callback.answer()
 
 @router.callback_query(F.data == "help")
@@ -1531,3 +1513,238 @@ async def show_price_list(callback: CallbackQuery):
     keyboard = get_back_to_menu_keyboard()
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
+
+def _format_signed(value: int) -> str:
+    return f"+{value}" if value >= 0 else str(value)
+
+async def build_month_earnings_context(tg_user) -> dict:
+    """Возвращает данные для отображения заработка за месяц"""
+    display_name = tg_user.full_name or tg_user.username or "Unknown"
+    user_id = await db.get_or_create_user(tg_user.id, display_name)
+    profession = await db.get_user_profession(tg_user.id)
+
+    context = {
+        "user_id": user_id,
+        "profession": profession,
+    }
+
+    if profession == "painter":
+        breakdown = await db.get_user_earnings_month_breakdown(user_id)
+        context["breakdown"] = breakdown
+        text = (
+            f"💰 <b>Заработок за текущий месяц:</b> {breakdown['total']:,} руб.\n\n"
+            f"🧼 <b>Подготовка:</b> {breakdown['prep']:,} руб.\n"
+            f"🎨 <b>Покраска:</b> {breakdown['painting']:,} руб."
+        )
+    else:
+        total = await db.get_user_earnings_month(user_id)
+        context["total"] = total
+        text = f"💰 <b>Заработок за текущий месяц:</b> {total:,} руб."
+
+    context["text"] = text
+    context["keyboard"] = get_month_earnings_keyboard(profession)
+    return context
+
+async def restore_salary_state(state: FSMContext):
+    """Возвращает FSM в состояние до начала редактирования заработка"""
+    data = await state.get_data()
+    prev_state = data.get("salary_prev_state")
+
+    if prev_state:
+        await state.set_state(prev_state)
+    else:
+        await state.set_state(default_state)
+
+    await state.update_data(
+        salary_prev_state=None,
+        salary_prep_delta=None,
+        salary_painting_delta=None,
+        salary_user_id=None
+    )
+
+def _is_cancel_text(text: str) -> bool:
+    return text.lower() in {"отмена", "cancel", "/cancel"}
+
+@router.callback_query(F.data == "salary_edit_menu")
+async def show_salary_edit_menu(callback: CallbackQuery):
+    """Показать меню редактирования заработка (только для маляров)"""
+    context = await build_month_earnings_context(callback.from_user)
+
+    if context.get("profession") != "painter":
+        await callback.answer("Раздел доступен только для маляров", show_alert=True)
+        return
+
+    breakdown = context.get("breakdown", {"prep": 0, "painting": 0, "total": 0})
+    text = (
+        "✏️ <b>Редактирование заработка</b>\n\n"
+        "Текущие суммы:\n"
+        f"• 🧼 Подготовка: {breakdown['prep']:,} руб.\n"
+        f"• 🎨 Покраска: {breakdown['painting']:,} руб.\n"
+        f"• Σ Итог: {breakdown['total']:,} руб.\n\n"
+        "Выберите действие:"
+    )
+
+    await safe_edit_message(callback, text, get_salary_edit_menu_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "salary_edit_history")
+async def show_salary_edit_history(callback: CallbackQuery):
+    """Показать историю корректировок заработка за месяц"""
+    context = await build_month_earnings_context(callback.from_user)
+
+    if context.get("profession") != "painter":
+        await callback.answer("Раздел доступен только для маляров", show_alert=True)
+        return
+
+    history = await db.get_earnings_adjustments_history(context["user_id"])
+    ufa_tz = ZoneInfo("Asia/Yekaterinburg")
+
+    if not history:
+        text = "🗂 <b>История корректировок</b>\n\nПока нет записей за текущий месяц."
+    else:
+        lines = []
+        for idx, entry in enumerate(history, start=1):
+            created_at = entry.get("created_at")
+            if created_at:
+                if created_at.tzinfo is None:
+                    created_local = created_at.replace(tzinfo=ufa_tz)
+                else:
+                    created_local = created_at.astimezone(ufa_tz)
+                time_str = created_local.strftime("%d.%m.%Y %H:%M")
+            else:
+                time_str = "-"
+
+            prep_delta = int(entry.get("prep_delta", 0))
+            painting_delta = int(entry.get("painting_delta", 0))
+            total_delta = prep_delta + painting_delta
+            description = entry.get("description") or "Без описания"
+
+            lines.append(
+                f"{idx}. {time_str}\n"
+                f"   🧼 Подготовка: {_format_signed(prep_delta)} руб.\n"
+                f"   🎨 Покраска: {_format_signed(painting_delta)} руб.\n"
+                f"   Σ Итог: {_format_signed(total_delta)} руб.\n"
+                f"   📄 {description}"
+            )
+
+        text = "🗂 <b>История корректировок</b>\n\n" + "\n\n".join(lines)
+
+    await safe_edit_message(callback, text, get_salary_edit_history_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "salary_edit_start")
+async def start_salary_edit(callback: CallbackQuery, state: FSMContext):
+    """Запуск ввода корректировок заработка"""
+    context = await build_month_earnings_context(callback.from_user)
+
+    if context.get("profession") != "painter":
+        await callback.answer("Раздел доступен только для маляров", show_alert=True)
+        return
+
+    current_state = await state.get_state()
+    if current_state in {
+        EarningsStates.waiting_for_prep_delta.state,
+        EarningsStates.waiting_for_painting_delta.state,
+        EarningsStates.waiting_for_description.state,
+    }:
+        await callback.answer("Редактирование уже запущено", show_alert=True)
+        return
+
+    await state.update_data(
+        salary_prev_state=current_state,
+        salary_user_id=context["user_id"],
+        salary_prep_delta=None,
+        salary_painting_delta=None
+    )
+
+    await state.set_state(EarningsStates.waiting_for_prep_delta)
+
+    await callback.message.answer(
+        "Введите изменение суммы за подготовку в рублях (можно отрицательное число). "
+        "Для отмены отправьте «отмена»."
+    )
+    await callback.answer()
+
+
+@router.message(StateFilter(EarningsStates.waiting_for_prep_delta))
+async def process_salary_prep_delta(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    try:
+        prep_delta = int(text)
+    except ValueError:
+        await message.answer("Введите целое число (можно со знаком). Попробуйте ещё раз.")
+        return
+
+    await state.update_data(salary_prep_delta=prep_delta)
+    await state.set_state(EarningsStates.waiting_for_painting_delta)
+    await message.answer("Введите изменение суммы за покраску в рублях (можно отрицательное число).")
+
+
+@router.message(StateFilter(EarningsStates.waiting_for_painting_delta))
+async def process_salary_painting_delta(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    try:
+        painting_delta = int(text)
+    except ValueError:
+        await message.answer("Введите целое число (можно со знаком). Попробуйте ещё раз.")
+        return
+
+    await state.update_data(salary_painting_delta=painting_delta)
+    await state.set_state(EarningsStates.waiting_for_description)
+    await message.answer("Опишите причину изменения (коротко, но информативно).")
+
+
+@router.message(StateFilter(EarningsStates.waiting_for_description))
+async def process_salary_description(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    if not text:
+        await message.answer("Описание не может быть пустым. Укажите причину изменения.")
+        return
+
+    data = await state.get_data()
+    prep_delta = int(data.get("salary_prep_delta", 0) or 0)
+    painting_delta = int(data.get("salary_painting_delta", 0) or 0)
+    user_id = data.get("salary_user_id")
+
+    if not user_id:
+        user_id = await db.get_or_create_user(
+            message.from_user.id,
+            message.from_user.full_name or message.from_user.username or "Unknown"
+        )
+
+    await db.add_earnings_adjustment(user_id, prep_delta, painting_delta, text)
+
+    total_delta = prep_delta + painting_delta
+    summary = (
+        "✅ <b>Корректировка сохранена</b>\n\n"
+        f"🧼 Подготовка: {_format_signed(prep_delta)} руб.\n"
+        f"🎨 Покраска: {_format_signed(painting_delta)} руб.\n"
+        f"Σ Итог: {_format_signed(total_delta)} руб.\n"
+        f"📄 {text}"
+    )
+
+    await message.answer(summary, parse_mode="HTML")
+    await restore_salary_state(state)
+
+    context = await build_month_earnings_context(message.from_user)
+    await message.answer(context["text"], parse_mode="HTML", reply_markup=context["keyboard"])

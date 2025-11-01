@@ -26,3 +26,10 @@ class EditOrderStates(StatesGroup):
     """Состояния для FSM редактирования заказов"""
     waiting_for_order_number = State()
     waiting_for_new_price = State()
+
+
+class EarningsStates(StatesGroup):
+    """Состояния для редактирования заработка"""
+    waiting_for_prep_delta = State()
+    waiting_for_painting_delta = State()
+    waiting_for_description = State()
