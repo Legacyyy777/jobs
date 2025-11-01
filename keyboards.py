@@ -5,17 +5,7 @@ def get_main_menu_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     """Главное меню бота"""
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🎨 Создать заказ", callback_data="create_order"))
-    builder.add(InlineKeyboardButton(text="💰 Заработок за день", callback_data="earnings_day"))
-    builder.add(InlineKeyboardButton(text="📊 Заработок за месяц", callback_data="earnings_month"))
-    
-    # Добавляем кнопку прайс-листа в зависимости от профессии
-    if profession == "painter":
-        builder.add(InlineKeyboardButton(text="💰 Прайс-лист маляра", callback_data="price_list_painter"))
-    elif profession == "sandblaster":
-        builder.add(InlineKeyboardButton(text="💰 Прайс-лист пескоструйщика", callback_data="price_list_sandblaster"))
-    else:
-        # Если профессия не определена, показываем обе кнопки
-        builder.add(InlineKeyboardButton(text="💰 Прайс-лист", callback_data="price_list"))
+    builder.add(InlineKeyboardButton(text="💰 Зарплата", callback_data="salary_menu"))
     
     builder.add(InlineKeyboardButton(text="✏️ Редактировать заказы", callback_data="edit_orders"))
     builder.add(InlineKeyboardButton(text="ℹ️ Помощь", callback_data="help"))
@@ -224,5 +214,22 @@ def get_spraying_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="✅ Да, было напыление", callback_data="spraying_yes"))
     builder.add(InlineKeyboardButton(text="❌ Нет напыления", callback_data="spraying_no"))
+    builder.adjust(1)
+    return builder.as_markup()
+
+def get_salary_keyboard(profession: str = None) -> InlineKeyboardMarkup:
+    """Клавиатура раздела зарплаты"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="💰 Заработок за день", callback_data="earnings_day"))
+    builder.add(InlineKeyboardButton(text="📊 Заработок за месяц", callback_data="earnings_month"))
+
+    if profession == "painter":
+        builder.add(InlineKeyboardButton(text="💼 Прайс-лист маляра", callback_data="price_list_painter"))
+    elif profession == "sandblaster":
+        builder.add(InlineKeyboardButton(text="💼 Прайс-лист пескоструйщика", callback_data="price_list_sandblaster"))
+    else:
+        builder.add(InlineKeyboardButton(text="💼 Прайс-лист", callback_data="price_list"))
+
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     builder.adjust(1)
     return builder.as_markup()

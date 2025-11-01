@@ -15,6 +15,7 @@ from keyboards import (
     get_size_keyboard,
     get_alumochrome_keyboard,
     get_suspensia_type_keyboard,
+    get_salary_keyboard,
     get_cancel_keyboard,
     get_back_to_menu_keyboard,
     get_start_keyboard,
@@ -387,6 +388,19 @@ async def start_create_order(callback: CallbackQuery, state: FSMContext):
     
     await safe_edit_message(callback, text, keyboard)
     await state.set_state(OrderStates.waiting_for_photo)
+    await callback.answer()
+
+@router.callback_query(F.data == "salary_menu")
+async def show_salary_menu(callback: CallbackQuery):
+    """Показать раздел зарплаты"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    text = (
+        "💰 <b>Раздел зарплаты</b>\n\n"
+        "Выберите нужный раздел:"
+    )
+    keyboard = get_salary_keyboard(user_profession)
+
+    await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "earnings_day")
