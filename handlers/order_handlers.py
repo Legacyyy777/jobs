@@ -431,9 +431,22 @@ async def show_earnings_month(callback: CallbackQuery):
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
     
-    earnings = await db.get_user_earnings_month(user_id)
+    profession = await db.get_user_profession(callback.from_user.id)
     
-    text = f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб."
+    if profession == "painter":
+        breakdown = await db.get_user_earnings_month_breakdown(user_id)
+        earnings = breakdown["total"]
+        prep_earnings = breakdown["prep"]
+        painting_earnings = breakdown["painting"]
+    
+        text = (
+            f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб.\n\n"
+            f"🧼 <b>Подготовка:</b> {prep_earnings:,} руб.\n"
+            f"🎨 <b>Покраска:</b> {painting_earnings:,} руб."
+        )
+    else:
+        earnings = await db.get_user_earnings_month(user_id)
+        text = f"💰 <b>Заработок за текущий месяц:</b> {earnings:,} руб."
     keyboard = get_back_to_menu_keyboard()
     
     await safe_edit_message(callback, text, keyboard)

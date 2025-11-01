@@ -5,6 +5,7 @@ from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from typing import Optional, List, Dict, Any
 from config import config
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -498,6 +499,90 @@ class Database:
             """, user_id, start_month_utc, end_month_utc) or 0
             
             return int(regular_earnings + earnings_70 + earnings_30)
+
+    async def get_user_earnings_month_breakdown(self, user_id: int) -> Dict[str, int]:
+        """Возвращает разбивку заработка за месяц по подготовке и покраске (для маляров)."""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+
+        total_decimal = Decimal(0)
+        prep_decimal = Decimal(0)
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT price,
+                       set_type,
+                       size,
+                       COALESCE(quantity, 1) AS quantity,
+                       COALESCE(alumochrome, FALSE) AS alumochrome,
+                       user_id,
+                       painter_70_id,
+                       painter_30_id
+                FROM orders
+                WHERE status = 'confirmed'
+                  AND (
+                        (user_id = $1 AND (set_type NOT LIKE '70_30_%' OR painter_70_id IS NULL))
+                        OR painter_70_id = $1
+                        OR painter_30_id = $1
+                  )
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') <  $3
+            """, user_id, start_month_utc, end_month_utc)
+
+        for row in rows:
+            set_type = row["set_type"] or ""
+            price = Decimal(row["price"] or 0)
+            quantity = row["quantity"] or 1
+
+            if price <= 0:
+                continue
+
+            # Определяем долю пользователя в заказе
+            share = Decimal(0)
+            if set_type.startswith("70_30_"):
+                if row["painter_70_id"] == user_id:
+                    share = Decimal("0.7")
+                elif row["painter_30_id"] == user_id:
+                    share = Decimal("0.3")
+                elif row["user_id"] == user_id:
+                    share = Decimal(1)
+                else:
+                    continue
+            else:
+                if row["user_id"] != user_id:
+                    continue
+                share = Decimal(1)
+
+            order_total = price * share
+            total_decimal += order_total
+
+            base_type = set_type
+            if set_type.startswith("70_30_"):
+                parts = set_type.split("_", 2)
+                base_type = parts[2] if len(parts) > 2 else ""
+
+            prep_part = Decimal(0)
+            if base_type == "single":
+                prep_part = Decimal(config.PRICE_PREP_SINGLE * max(quantity, 1))
+            elif base_type == "set":
+                prep_part = Decimal(config.PRICE_PREP_SET * max(quantity, 1))
+
+            prep_decimal += prep_part * share
+
+        total_int = int(total_decimal)
+        prep_int = int(prep_decimal)
+        painting_int = max(total_int - prep_int, 0)
+
+        return {
+            "total": total_int,
+            "prep": prep_int,
+            "painting": painting_int
+        }
 
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""
