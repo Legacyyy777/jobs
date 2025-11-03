@@ -1375,6 +1375,88 @@ async def send_admin_notification(bot, order_number: str, order_data: dict, user
         logging.error(f"Ошибка отправки уведомления в чат модерации: {e}")
 
 
+@router.message(StateFilter(EarningsStates.waiting_for_prep_delta))
+async def process_salary_prep_delta(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    try:
+        prep_delta = int(text)
+    except ValueError:
+        await message.answer("Введите целое число (можно со знаком). Попробуйте ещё раз.")
+        return
+
+    await state.update_data(salary_prep_delta=prep_delta)
+    await state.set_state(EarningsStates.waiting_for_painting_delta)
+    await message.answer("Введите изменение суммы за покраску в рублях (можно отрицательное число).")
+
+
+@router.message(StateFilter(EarningsStates.waiting_for_painting_delta))
+async def process_salary_painting_delta(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    try:
+        painting_delta = int(text)
+    except ValueError:
+        await message.answer("Введите целое число (можно со знаком). Попробуйте ещё раз.")
+        return
+
+    await state.update_data(salary_painting_delta=painting_delta)
+    await state.set_state(EarningsStates.waiting_for_description)
+    await message.answer("Опишите причину изменения (коротко, но информативно).")
+
+
+@router.message(StateFilter(EarningsStates.waiting_for_description))
+async def process_salary_description(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+
+    if _is_cancel_text(text):
+        await restore_salary_state(state)
+        await message.answer("Редактирование заработка отменено.")
+        return
+
+    if not text:
+        await message.answer("Описание не может быть пустым. Укажите причину изменения.")
+        return
+
+    data = await state.get_data()
+    prep_delta = int(data.get("salary_prep_delta", 0) or 0)
+    painting_delta = int(data.get("salary_painting_delta", 0) or 0)
+    user_id = data.get("salary_user_id")
+
+    if not user_id:
+        user_id = await db.get_or_create_user(
+            message.from_user.id,
+            message.from_user.full_name or message.from_user.username or "Unknown"
+        )
+
+    await db.add_earnings_adjustment(user_id, prep_delta, painting_delta, text)
+
+    total_delta = prep_delta + painting_delta
+    summary = (
+        "✅ <b>Корректировка сохранена</b>\n\n"
+        f"🧼 Подготовка: {_format_signed(prep_delta)} руб.\n"
+        f"🎨 Покраска: {_format_signed(painting_delta)} руб.\n"
+        f"Σ Итог: {_format_signed(total_delta)} руб.\n"
+        f"📄 {text}"
+    )
+
+    await message.answer(summary, parse_mode="HTML")
+    await restore_salary_state(state)
+
+    context = await build_month_earnings_context(message.from_user)
+    await message.answer(context["text"], parse_mode="HTML", reply_markup=context["keyboard"])
+
+
 @router.message()
 async def handle_any_message(message: Message, state: FSMContext):
     """Обработчик для всех остальных сообщений"""
