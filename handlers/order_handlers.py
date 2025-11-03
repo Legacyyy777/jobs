@@ -20,6 +20,7 @@ from keyboards import (
     get_month_earnings_keyboard,
     get_salary_edit_menu_keyboard,
     get_salary_edit_history_keyboard,
+    get_analytics_keyboard,
     get_cancel_keyboard,
     get_back_to_menu_keyboard,
     get_start_keyboard,
@@ -405,6 +406,127 @@ async def show_salary_menu(callback: CallbackQuery):
     keyboard = get_salary_keyboard(user_profession)
 
     await safe_edit_message(callback, text, keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "analytics_menu")
+async def show_analytics_menu(callback: CallbackQuery):
+    """Показать раздел аналитики"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    text = (
+        "📊 <b>Аналитика</b>\n\n"
+        "Статистика за текущий месяц:"
+    )
+    keyboard = get_analytics_keyboard(user_profession)
+
+    await safe_edit_message(callback, text, keyboard)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "analytics_top_employees")
+async def show_top_employees(callback: CallbackQuery):
+    """Показать топ сотрудников месяца"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    top = await db.get_top_employees_month(profession=user_profession, limit=10)
+    
+    if not top:
+        text = "🏆 <b>Топ сотрудников месяца</b>\n\nПока нет данных за текущий месяц."
+    else:
+        profession_emoji = "🎨" if user_profession == "painter" else "💨"
+        profession_name = "маляров" if user_profession == "painter" else "пескоструйщиков"
+        
+        lines = []
+        for idx, emp in enumerate(top, start=1):
+            medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
+            lines.append(
+                f"{medal} <b>{emp['name']}</b>\n"
+                f"    💰 {emp['total_earnings']:,} руб. | 📦 {emp['total_orders']} заказов"
+            )
+        
+        text = f"🏆 <b>Топ {profession_emoji} {profession_name} месяца</b>\n\n" + "\n\n".join(lines)
+    
+    await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "analytics_weekdays")
+async def show_weekdays_stats(callback: CallbackQuery):
+    """Показать статистику по дням недели"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    weekday_stats = await db.get_orders_by_weekday(profession=user_profession)
+    
+    weekdays_ru = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    
+    if not weekday_stats:
+        text = "📅 <b>График активности</b>\n\nПока нет данных за текущий месяц."
+    else:
+        max_count = max(weekday_stats.values()) if weekday_stats else 1
+        lines = []
+        
+        for day_idx in range(7):
+            count = weekday_stats.get(day_idx, 0)
+            # Простой текстовый график
+            bar_length = int((count / max_count) * 10) if max_count > 0 else 0
+            bar = "█" * bar_length + "░" * (10 - bar_length)
+            lines.append(f"{weekdays_ru[day_idx]}: {bar} {count}")
+        
+        total = sum(weekday_stats.values())
+        text = (
+            f"📅 <b>График активности по дням недели</b>\n\n"
+            + "\n".join(lines) +
+            f"\n\n📦 <b>Всего заказов:</b> {total}"
+        )
+    
+    await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "analytics_popular_sizes")
+async def show_popular_sizes(callback: CallbackQuery):
+    """Показать популярные размеры дисков"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    sizes = await db.get_popular_sizes(profession=user_profession, limit=10)
+    
+    if not sizes:
+        text = "📏 <b>Популярные размеры</b>\n\nПока нет данных за текущий месяц."
+    else:
+        lines = []
+        total_count = sum(s['count'] for s in sizes)
+        
+        for idx, size_data in enumerate(sizes, start=1):
+            size = size_data['size']
+            count = size_data['count']
+            percentage = (count / total_count * 100) if total_count > 0 else 0
+            lines.append(f"{idx}. <b>{size}</b>: {count} шт. ({percentage:.1f}%)")
+        
+        text = f"📏 <b>Популярные размеры дисков</b>\n\n" + "\n".join(lines)
+    
+    await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
+    await callback.answer()
+
+
+@router.callback_query(F.data == "analytics_avg_price")
+async def show_avg_price(callback: CallbackQuery):
+    """Показать средний чек"""
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    stats = await db.get_average_order_price(profession=user_profession)
+    
+    profession_emoji = "🎨" if user_profession == "painter" else "💨"
+    profession_name = "Маляр" if user_profession == "painter" else "Пескоструйщик"
+    
+    text = (
+        f"💵 <b>Средний чек ({profession_emoji} {profession_name})</b>\n\n"
+        f"📦 <b>Всего заказов:</b> {stats['total_orders']}\n"
+        f"💰 <b>Средний чек:</b> {stats['avg_price']:,} руб.\n"
+        f"📉 <b>Минимальный:</b> {stats['min_price']:,} руб.\n"
+        f"📈 <b>Максимальный:</b> {stats['max_price']:,} руб."
+    )
+    
+    await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
     await callback.answer()
 
 @router.callback_query(F.data == "earnings_day")

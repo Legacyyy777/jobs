@@ -660,6 +660,207 @@ class Database:
             )
             return result.split()[-1] == "1"
 
+    # === АНАЛИТИКА ===
+    
+    async def get_top_employees_month(self, profession: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """Топ сотрудников месяца по заработку"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+        
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+        
+        async with self.pool.acquire() as conn:
+            query = """
+                WITH user_earnings AS (
+                    -- Обычные заказы
+                    SELECT u.id, u.name, u.profession, 
+                           COALESCE(SUM(o.price), 0) as earnings,
+                           COUNT(o.id) as orders_count
+                    FROM users u
+                    LEFT JOIN orders o ON o.user_id = u.id 
+                        AND o.status = 'confirmed'
+                        AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                        AND (o.created_at AT TIME ZONE 'UTC') < $2
+                        AND o.set_type NOT LIKE '70_30_%'
+                    WHERE 1=1 {profession_filter}
+                    GROUP BY u.id, u.name, u.profession
+                    
+                    UNION ALL
+                    
+                    -- Заказы 70/30 (70%)
+                    SELECT u.id, u.name, u.profession,
+                           COALESCE(SUM(o.price * 0.7), 0) as earnings,
+                           COUNT(o.id) as orders_count
+                    FROM users u
+                    LEFT JOIN orders o ON o.painter_70_id = u.id
+                        AND o.status = 'confirmed'
+                        AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                        AND (o.created_at AT TIME ZONE 'UTC') < $2
+                        AND o.set_type LIKE '70_30_%'
+                    WHERE 1=1 {profession_filter}
+                    GROUP BY u.id, u.name, u.profession
+                    
+                    UNION ALL
+                    
+                    -- Заказы 70/30 (30%)
+                    SELECT u.id, u.name, u.profession,
+                           COALESCE(SUM(o.price * 0.3), 0) as earnings,
+                           COUNT(o.id) as orders_count
+                    FROM users u
+                    LEFT JOIN orders o ON o.painter_30_id = u.id
+                        AND o.status = 'confirmed'
+                        AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                        AND (o.created_at AT TIME ZONE 'UTC') < $2
+                        AND o.set_type LIKE '70_30_%'
+                    WHERE 1=1 {profession_filter}
+                    GROUP BY u.id, u.name, u.profession
+                )
+                SELECT id, name, profession,
+                       SUM(earnings)::INTEGER as total_earnings,
+                       SUM(orders_count)::INTEGER as total_orders
+                FROM user_earnings
+                GROUP BY id, name, profession
+                HAVING SUM(earnings) > 0 OR SUM(orders_count) > 0
+                ORDER BY total_earnings DESC
+                LIMIT $3
+            """
+            
+            profession_filter = "AND u.profession = $4" if profession else ""
+            query = query.format(profession_filter=profession_filter)
+            
+            if profession:
+                rows = await conn.fetch(query, start_month_utc, end_month_utc, limit, profession)
+            else:
+                rows = await conn.fetch(query, start_month_utc, end_month_utc, limit)
+            
+            return [dict(row) for row in rows]
+    
+    async def get_orders_by_weekday(self, profession: str = None) -> Dict[int, int]:
+        """Статистика заказов по дням недели (0=понедельник, 6=воскресенье)"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+        
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+        
+        async with self.pool.acquire() as conn:
+            if profession:
+                rows = await conn.fetch("""
+                    SELECT EXTRACT(DOW FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
+                           COUNT(*) as count
+                    FROM orders o
+                    JOIN users u ON o.user_id = u.id
+                    WHERE o.status = 'confirmed'
+                      AND u.profession = $3
+                      AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                      AND (o.created_at AT TIME ZONE 'UTC') < $2
+                    GROUP BY weekday
+                    ORDER BY weekday
+                """, start_month_utc, end_month_utc, profession)
+            else:
+                rows = await conn.fetch("""
+                    SELECT EXTRACT(DOW FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
+                           COUNT(*) as count
+                    FROM orders
+                    WHERE status = 'confirmed'
+                      AND (created_at AT TIME ZONE 'UTC') >= $1
+                      AND (created_at AT TIME ZONE 'UTC') < $2
+                    GROUP BY weekday
+                    ORDER BY weekday
+                """, start_month_utc, end_month_utc)
+            
+            # PostgreSQL DOW: 0=воскресенье, 1=понедельник... преобразуем к Python (0=понедельник)
+            result = {}
+            for row in rows:
+                dow_pg = int(row['weekday'])
+                dow_py = (dow_pg + 6) % 7  # 0->6, 1->0, 2->1...
+                result[dow_py] = int(row['count'])
+            
+            return result
+    
+    async def get_popular_sizes(self, profession: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """Популярные размеры дисков"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+        
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+        
+        async with self.pool.acquire() as conn:
+            if profession:
+                rows = await conn.fetch("""
+                    SELECT o.size, COUNT(*) as count
+                    FROM orders o
+                    JOIN users u ON o.user_id = u.id
+                    WHERE o.status = 'confirmed'
+                      AND o.size IS NOT NULL
+                      AND u.profession = $3
+                      AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                      AND (o.created_at AT TIME ZONE 'UTC') < $2
+                    GROUP BY o.size
+                    ORDER BY count DESC
+                    LIMIT $4
+                """, start_month_utc, end_month_utc, profession, limit)
+            else:
+                rows = await conn.fetch("""
+                    SELECT size, COUNT(*) as count
+                    FROM orders
+                    WHERE status = 'confirmed'
+                      AND size IS NOT NULL
+                      AND (created_at AT TIME ZONE 'UTC') >= $1
+                      AND (created_at AT TIME ZONE 'UTC') < $2
+                    GROUP BY size
+                    ORDER BY count DESC
+                    LIMIT $3
+                """, start_month_utc, end_month_utc, limit)
+            
+            return [dict(row) for row in rows]
+    
+    async def get_average_order_price(self, profession: str = None) -> Dict[str, Any]:
+        """Средний чек по профессии"""
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        start_month_local = now_local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month_local = (start_month_local + timedelta(days=32)).replace(day=1)
+        
+        start_month_utc = start_month_local.astimezone(ZoneInfo("UTC"))
+        end_month_utc = end_month_local.astimezone(ZoneInfo("UTC"))
+        
+        async with self.pool.acquire() as conn:
+            if profession:
+                row = await conn.fetchrow("""
+                    SELECT COUNT(*) as total_orders,
+                           COALESCE(AVG(o.price), 0)::INTEGER as avg_price,
+                           COALESCE(MIN(o.price), 0)::INTEGER as min_price,
+                           COALESCE(MAX(o.price), 0)::INTEGER as max_price
+                    FROM orders o
+                    JOIN users u ON o.user_id = u.id
+                    WHERE o.status = 'confirmed'
+                      AND u.profession = $3
+                      AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                      AND (o.created_at AT TIME ZONE 'UTC') < $2
+                """, start_month_utc, end_month_utc, profession)
+            else:
+                row = await conn.fetchrow("""
+                    SELECT COUNT(*) as total_orders,
+                           COALESCE(AVG(price), 0)::INTEGER as avg_price,
+                           COALESCE(MIN(price), 0)::INTEGER as min_price,
+                           COALESCE(MAX(price), 0)::INTEGER as max_price
+                    FROM orders
+                    WHERE status = 'confirmed'
+                      AND (created_at AT TIME ZONE 'UTC') >= $1
+                      AND (created_at AT TIME ZONE 'UTC') < $2
+                """, start_month_utc, end_month_utc)
+            
+            return dict(row) if row else {"total_orders": 0, "avg_price": 0, "min_price": 0, "max_price": 0}
+
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""
         tz = ZoneInfo("Asia/Yekaterinburg")

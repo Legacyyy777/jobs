@@ -6,7 +6,7 @@ def get_main_menu_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="🎨 Создать заказ", callback_data="create_order"))
     builder.add(InlineKeyboardButton(text="💰 Зарплата", callback_data="salary_menu"))
-    
+    builder.add(InlineKeyboardButton(text="📊 Аналитика", callback_data="analytics_menu"))
     builder.add(InlineKeyboardButton(text="✏️ Редактировать заказы", callback_data="edit_orders"))
     builder.add(InlineKeyboardButton(text="ℹ️ Помощь", callback_data="help"))
     builder.adjust(1)
@@ -255,6 +255,18 @@ def get_salary_edit_history_keyboard(adjustments_list: list = None) -> InlineKey
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     builder.adjust(2)  # По 2 кнопки удаления в ряд
     return builder.as_markup()
+
+def get_analytics_keyboard(profession: str = None) -> InlineKeyboardMarkup:
+    """Клавиатура раздела аналитики"""
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🏆 Топ сотрудников", callback_data="analytics_top_employees"))
+    builder.add(InlineKeyboardButton(text="📅 График по дням недели", callback_data="analytics_weekdays"))
+    builder.add(InlineKeyboardButton(text="📏 Популярные размеры", callback_data="analytics_popular_sizes"))
+    builder.add(InlineKeyboardButton(text="💵 Средний чек", callback_data="analytics_avg_price"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    return builder.as_markup()
+
 
 def get_salary_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     """Клавиатура раздела зарплаты"""
