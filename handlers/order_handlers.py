@@ -1457,6 +1457,65 @@ async def process_salary_description(message: Message, state: FSMContext):
     await message.answer(context["text"], parse_mode="HTML", reply_markup=context["keyboard"])
 
 
+@router.callback_query(F.data.startswith("delete_adjustment_"))
+async def delete_adjustment(callback: CallbackQuery):
+    """Удаление корректировки заработка"""
+    context = await build_month_earnings_context(callback.from_user)
+
+    if context.get("profession") != "painter":
+        await callback.answer("Раздел доступен только для маляров", show_alert=True)
+        return
+
+    try:
+        adjustment_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("Ошибка ID корректировки", show_alert=True)
+        return
+
+    deleted = await db.delete_earnings_adjustment(adjustment_id, context["user_id"])
+
+    if deleted:
+        await callback.answer("✅ Корректировка удалена", show_alert=True)
+        
+        # Обновляем историю
+        history = await db.get_earnings_adjustments_history(context["user_id"])
+        ufa_tz = ZoneInfo("Asia/Yekaterinburg")
+
+        if not history:
+            text = "🗂 <b>История корректировок</b>\n\nПока нет записей за текущий месяц."
+        else:
+            lines = []
+            for idx, entry in enumerate(history, start=1):
+                created_at = entry.get("created_at")
+                if created_at:
+                    if created_at.tzinfo is None:
+                        created_local = created_at.replace(tzinfo=ufa_tz)
+                    else:
+                        created_local = created_at.astimezone(ufa_tz)
+                    time_str = created_local.strftime("%d.%m.%Y %H:%M")
+                else:
+                    time_str = "-"
+
+                prep_delta = int(entry.get("prep_delta", 0))
+                painting_delta = int(entry.get("painting_delta", 0))
+                total_delta = prep_delta + painting_delta
+                description = entry.get("description") or "Без описания"
+
+                lines.append(
+                    f"{idx}. {time_str}\n"
+                    f"   🧼 Подготовка: {_format_signed(prep_delta)} руб.\n"
+                    f"   🎨 Покраска: {_format_signed(painting_delta)} руб.\n"
+                    f"   Σ Итог: {_format_signed(total_delta)} руб.\n"
+                    f"   📄 {description}"
+                )
+
+            text = "🗂 <b>История корректировок</b>\n\n" + "\n\n".join(lines)
+
+        await safe_edit_message(callback, text, get_salary_edit_history_keyboard(history))
+    else:
+        await callback.answer("❌ Не удалось удалить корректировку", show_alert=True)
+
+
 @router.message()
 async def handle_any_message(message: Message, state: FSMContext):
     """Обработчик для всех остальных сообщений"""
@@ -1715,7 +1774,7 @@ async def show_salary_edit_history(callback: CallbackQuery):
 
         text = "🗂 <b>История корректировок</b>\n\n" + "\n\n".join(lines)
 
-    await safe_edit_message(callback, text, get_salary_edit_history_keyboard())
+    await safe_edit_message(callback, text, get_salary_edit_history_keyboard(history))
     await callback.answer()
 
 

@@ -639,7 +639,7 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT prep_delta, painting_delta, description, created_at
+                SELECT id, prep_delta, painting_delta, description, created_at
                 FROM earnings_adjustments
                 WHERE user_id = $1 AND month_start = $2
                 ORDER BY created_at DESC, id DESC
@@ -649,6 +649,16 @@ class Database:
             )
 
         return [dict(row) for row in rows]
+    
+    async def delete_earnings_adjustment(self, adjustment_id: int, user_id: int) -> bool:
+        """Удаляет корректировку заработка (только свои)"""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM earnings_adjustments WHERE id = $1 AND user_id = $2",
+                adjustment_id,
+                user_id
+            )
+            return result.split()[-1] == "1"
 
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""

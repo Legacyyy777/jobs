@@ -237,12 +237,23 @@ def get_salary_edit_menu_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def get_salary_edit_history_keyboard() -> InlineKeyboardMarkup:
+def get_salary_edit_history_keyboard(adjustments_list: list = None) -> InlineKeyboardMarkup:
     """Клавиатура для истории корректировок заработка"""
     builder = InlineKeyboardBuilder()
+    
+    # Добавляем кнопки удаления для каждой корректировки
+    if adjustments_list:
+        for idx, adj in enumerate(adjustments_list):
+            adj_id = adj.get("id")
+            if adj_id:
+                builder.add(InlineKeyboardButton(
+                    text=f"🗑 Удалить #{idx + 1}",
+                    callback_data=f"delete_adjustment_{adj_id}"
+                ))
+    
     builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="salary_edit_menu"))
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
-    builder.adjust(1)
+    builder.adjust(2)  # По 2 кнопки удаления в ряд
     return builder.as_markup()
 
 def get_salary_keyboard(profession: str = None) -> InlineKeyboardMarkup:
