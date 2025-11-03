@@ -531,6 +531,62 @@ async def show_avg_price(callback: CallbackQuery):
     await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
     await callback.answer()
 
+
+@router.callback_query(F.data == "my_achievements")
+async def show_my_achievements(callback: CallbackQuery):
+    """Показать достижения пользователя"""
+    user_id = await db.get_or_create_user(
+        callback.from_user.id,
+        callback.from_user.full_name or callback.from_user.username or "Unknown"
+    )
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    user_achievements = await db.get_user_achievements(user_id)
+    stats = await db.get_user_achievement_stats(user_id)
+    
+    from achievements import get_achievement_info
+    from zoneinfo import ZoneInfo
+    
+    if not user_achievements:
+        text = (
+            f"🏅 <b>Мои достижения</b>\n\n"
+            f"У вас пока нет достижений.\n"
+            f"Продолжайте работать, и ачивки не заставят себя ждать!\n\n"
+            f"📊 Прогресс: 0/{stats['total']} (0%)"
+        )
+    else:
+        lines = []
+        ufa_tz = ZoneInfo("Asia/Yekaterinburg")
+        
+        for ach in user_achievements:
+            ach_id = ach['achievement_id']
+            ach_info = get_achievement_info(ach_id)
+            
+            earned_at = ach.get('earned_at')
+            if earned_at:
+                if earned_at.tzinfo is None:
+                    earned_local = earned_at.replace(tzinfo=ufa_tz)
+                else:
+                    earned_local = earned_at.astimezone(ufa_tz)
+                date_str = earned_local.strftime("%d.%m.%Y")
+            else:
+                date_str = "-"
+            
+            emoji = ach_info.get('emoji', '🏆')
+            name = ach_info.get('name', ach_id)
+            description = ach_info.get('description', '')
+            
+            lines.append(f"{emoji} <b>{name}</b>\n   {description}\n   📅 {date_str}")
+        
+        text = (
+            f"🏅 <b>Мои достижения</b>\n\n"
+            f"📊 Прогресс: {stats['earned']}/{stats['total']} ({stats['percentage']:.0f}%)\n\n"
+            + "\n\n".join(lines)
+        )
+    
+    await safe_edit_message(callback, text, get_analytics_keyboard(user_profession))
+    await callback.answer()
+
 @router.callback_query(F.data == "earnings_day")
 async def show_earnings_day(callback: CallbackQuery):
     """Показать заработок за сегодня"""

@@ -269,6 +269,7 @@ def get_analytics_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     else:
         builder.add(InlineKeyboardButton(text="💼 Прайс-лист", callback_data="price_list"))
     
+    builder.add(InlineKeyboardButton(text="🏅 Мои достижения", callback_data="my_achievements"))
     builder.add(InlineKeyboardButton(text="🏆 Топ сотрудников", callback_data="analytics_top_employees"))
     builder.add(InlineKeyboardButton(text="📅 График по дням недели", callback_data="analytics_weekdays"))
     builder.add(InlineKeyboardButton(text="📏 Популярные размеры", callback_data="analytics_popular_sizes"))

@@ -81,6 +81,47 @@ async def admin_confirm_order(callback: CallbackQuery):
     # Обновляем статус заказа
     await db.update_order_status(order['id'], "confirmed")
     
+    # Проверяем и выдаём ачивки
+    user_id = order.get('user_id')
+    if user_id:
+        new_achievements = await db.check_and_grant_achievements(user_id, order)
+        if new_achievements:
+            from achievements import format_achievement_announcement
+            user_name = order.get('user_name', 'Сотрудник')
+            
+            # Анонсируем ачивки в группу модерации
+            for achievement_id in new_achievements:
+                announce_text = format_achievement_announcement(
+                    achievement_id, 
+                    user_name,
+                    amount=order.get('price', 0)
+                )
+                if announce_text and config.MODERATION_CHAT_ID:
+                    try:
+                        await callback.bot.send_message(
+                            chat_id=config.MODERATION_CHAT_ID,
+                            text=announce_text,
+                            parse_mode="HTML"
+                        )
+                        logging.info(f"🏆 Анонс ачивки {achievement_id} для {user_name}")
+                    except Exception as e:
+                        logging.error(f"Ошибка анонса ачивки: {e}")
+            
+            # Уведомляем пользователя о новых ачивках
+            try:
+                from achievements import get_achievement_info
+                achievements_text = "\n".join([
+                    f"{get_achievement_info(aid).get('emoji', '🏆')} {get_achievement_info(aid).get('name', aid)}"
+                    for aid in new_achievements
+                ])
+                await callback.bot.send_message(
+                    chat_id=order['tg_id'],
+                    text=f"🎉 <b>Новые достижения!</b>\n\n{achievements_text}",
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logging.error(f"Ошибка уведомления пользователя об ачивках: {e}")
+    
     # Удаляем сообщение с напоминанием, если оно было отправлено
     reminder_msg_id = await db.get_reminder_message_id(order['id'])
     if reminder_msg_id:

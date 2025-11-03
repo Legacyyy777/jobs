@@ -271,6 +271,20 @@ class Database:
                 """)
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_earnings_adjustments_user_month ON earnings_adjustments(user_id, month_start)")
                 
+                # Таблица достижений
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS user_achievements (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        achievement_id VARCHAR(50) NOT NULL,
+                        earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        announced BOOLEAN DEFAULT FALSE,
+                        UNIQUE(user_id, achievement_id)
+                    )
+                """)
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_achievements_user ON user_achievements(user_id)")
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_achievements_announced ON user_achievements(announced)")
+                
                 # Индексы для оптимизации
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)")
                 await conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
@@ -860,6 +874,201 @@ class Database:
                 """, start_month_utc, end_month_utc)
             
             return dict(row) if row else {"total_orders": 0, "avg_price": 0, "min_price": 0, "max_price": 0}
+
+    # === ДОСТИЖЕНИЯ ===
+    
+    async def has_achievement(self, user_id: int, achievement_id: str) -> bool:
+        """Проверяет, есть ли у пользователя ачивка"""
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(
+                "SELECT EXISTS(SELECT 1 FROM user_achievements WHERE user_id = $1 AND achievement_id = $2)",
+                user_id, achievement_id
+            )
+            return result or False
+    
+    async def grant_achievement(self, user_id: int, achievement_id: str) -> bool:
+        """Выдать ачивку пользователю (если ещё нет)"""
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.execute(
+                    "INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                    user_id, achievement_id
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Ошибка выдачи ачивки {achievement_id} пользователю {user_id}: {e}")
+                return False
+    
+    async def get_user_achievements(self, user_id: int) -> List[Dict[str, Any]]:
+        """Получить все ачивки пользователя"""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT achievement_id, earned_at FROM user_achievements WHERE user_id = $1 ORDER BY earned_at DESC",
+                user_id
+            )
+            return [dict(row) for row in rows]
+    
+    async def get_unannounced_achievements(self) -> List[Dict[str, Any]]:
+        """Получить неанонсированные ачивки для публикации"""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT ua.id, ua.user_id, ua.achievement_id, ua.earned_at, u.name, u.tg_id
+                FROM user_achievements ua
+                JOIN users u ON ua.user_id = u.id
+                WHERE ua.announced = FALSE
+                ORDER BY ua.earned_at ASC
+            """)
+            return [dict(row) for row in rows]
+    
+    async def mark_achievement_announced(self, achievement_record_id: int):
+        """Отметить ачивку как анонсированную"""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE user_achievements SET announced = TRUE WHERE id = $1",
+                achievement_record_id
+            )
+    
+    async def check_and_grant_achievements(self, user_id: int, order_data: dict = None) -> List[str]:
+        """Проверить условия и выдать новые ачивки, вернуть список новых"""
+        from achievements import ACHIEVEMENTS
+        
+        new_achievements = []
+        
+        # Получаем данные пользователя
+        tz = ZoneInfo("Asia/Yekaterinburg")
+        now_local = datetime.now(tz)
+        
+        async with self.pool.acquire() as conn:
+            # Общее количество подтверждённых заказов
+            total_orders = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = 'confirmed'",
+                user_id
+            ) or 0
+            
+            # Заработок за текущий месяц
+            month_earnings_result = await self.get_user_earnings_month(user_id)
+            
+            # Заработок за всё время
+            total_earnings = await conn.fetchval("""
+                SELECT COALESCE(SUM(price), 0) + 
+                       COALESCE((SELECT SUM(price * 0.7) FROM orders WHERE painter_70_id = $1 AND status = 'confirmed'), 0) +
+                       COALESCE((SELECT SUM(price * 0.3) FROM orders WHERE painter_30_id = $1 AND status = 'confirmed'), 0)
+                FROM orders 
+                WHERE user_id = $1 AND status = 'confirmed' AND set_type NOT LIKE '70_30_%'
+            """, user_id) or 0
+            
+            # Заказы за сегодня
+            today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            today_start_utc = today_start.astimezone(ZoneInfo("UTC"))
+            today_end_utc = (today_start + timedelta(days=1)).astimezone(ZoneInfo("UTC"))
+            
+            today_orders = await conn.fetchval("""
+                SELECT COUNT(*) FROM orders 
+                WHERE user_id = $1 AND status = 'confirmed'
+                  AND (created_at AT TIME ZONE 'UTC') >= $2
+                  AND (created_at AT TIME ZONE 'UTC') < $3
+            """, user_id, today_start_utc, today_end_utc) or 0
+            
+            today_earnings = await self.get_user_earnings_today(user_id)
+            
+            # Заказы 70/30
+            team_orders = await conn.fetchval("""
+                SELECT COUNT(*) FROM orders 
+                WHERE (painter_70_id = $1 OR painter_30_id = $1) 
+                  AND status = 'confirmed'
+                  AND set_type LIKE '70_30_%'
+            """, user_id) or 0
+            
+            # Заказы с алюмохромом
+            alumochrome_orders = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = 'confirmed' AND alumochrome = TRUE",
+                user_id
+            ) or 0
+            
+            # Заказы с большими размерами (R20+)
+            big_size_orders = await conn.fetchval("""
+                SELECT COUNT(*) FROM orders 
+                WHERE user_id = $1 AND status = 'confirmed' 
+                  AND size IN ('R20', 'R21', 'R22', 'R23', 'R24')
+            """, user_id) or 0
+            
+            # Заказы без отклонений
+            rejected_orders = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = 'rejected'",
+                user_id
+            ) or 0
+            perfect_orders = total_orders if rejected_orders == 0 else 0
+        
+        # Проверяем все ачивки
+        for achievement_id, achievement in ACHIEVEMENTS.items():
+            if await self.has_achievement(user_id, achievement_id):
+                continue
+            
+            condition = achievement.get("condition", {})
+            cond_type = condition.get("type")
+            cond_value = condition.get("value")
+            
+            granted = False
+            
+            if cond_type == "orders_count" and total_orders >= cond_value:
+                granted = True
+            elif cond_type == "month_earnings" and month_earnings_result >= cond_value:
+                granted = True
+            elif cond_type == "total_earnings" and total_earnings >= cond_value:
+                granted = True
+            elif cond_type == "orders_per_day" and today_orders >= cond_value:
+                granted = True
+            elif cond_type == "day_earnings" and today_earnings >= cond_value:
+                granted = True
+            elif cond_type == "team_orders" and team_orders >= cond_value:
+                granted = True
+            elif cond_type == "alumochrome_orders" and alumochrome_orders >= cond_value:
+                granted = True
+            elif cond_type == "big_sizes" and big_size_orders >= cond_value:
+                granted = True
+            elif cond_type == "perfect_orders" and perfect_orders >= cond_value:
+                granted = True
+            elif cond_type == "single_order_price" and order_data and order_data.get("price", 0) >= cond_value:
+                granted = True
+            elif cond_type == "night_order" and order_data:
+                # Проверка времени создания заказа (22:00-06:00)
+                created = order_data.get("created_at")
+                if created:
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=ZoneInfo("UTC"))
+                    created_local = created.astimezone(tz)
+                    hour = created_local.hour
+                    if hour >= 22 or hour < 6:
+                        granted = True
+            elif cond_type == "early_order" and order_data:
+                # Проверка времени создания заказа (до 07:00)
+                created = order_data.get("created_at")
+                if created:
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=ZoneInfo("UTC"))
+                    created_local = created.astimezone(tz)
+                    if created_local.hour < 7:
+                        granted = True
+            
+            if granted:
+                await self.grant_achievement(user_id, achievement_id)
+                new_achievements.append(achievement_id)
+        
+        return new_achievements
+    
+    async def get_user_achievement_stats(self, user_id: int) -> Dict[str, Any]:
+        """Статистика по ачивкам пользователя"""
+        from achievements import ACHIEVEMENTS
+        
+        total_achievements = len(ACHIEVEMENTS)
+        user_achievements = await self.get_user_achievements(user_id)
+        earned_count = len(user_achievements)
+        
+        return {
+            "total": total_achievements,
+            "earned": earned_count,
+            "percentage": (earned_count / total_achievements * 100) if total_achievements > 0 else 0
+        }
 
     async def get_user_avg_earnings_per_day(self, user_id: int) -> float:
         """Получает средний заработок пользователя за день в текущем месяце"""
