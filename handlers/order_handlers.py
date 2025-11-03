@@ -7,9 +7,10 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 
-from handlers.fsm import OrderStates, UserStates, EarningsStates
+from handlers.fsm import OrderStates, UserStates, EarningsStates, BetaOrderStates
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
+import ocr_helper
 from keyboards import (
     get_main_menu_keyboard,
     get_set_type_keyboard, 
@@ -638,10 +639,238 @@ async def show_help(callback: CallbackQuery):
         "Обратитесь к администратору"
     )
     
-    keyboard = get_back_to_menu_keyboard()
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🧪 БЕТА-функции", callback_data="beta_menu"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    keyboard = builder.as_markup()
     
     await safe_edit_message(callback, help_text, keyboard)
     await callback.answer()
+
+
+@router.callback_query(F.data == "beta_menu")
+async def show_beta_menu(callback: CallbackQuery):
+    """Показать меню бета-функций"""
+    ocr_status = "✅ Доступно" if ocr_helper.is_ocr_available() else "❌ Недоступно"
+    
+    text = (
+        "🧪 <b>БЕТА-функции</b>\n\n"
+        "Здесь вы можете протестировать новые экспериментальные возможности:\n\n"
+        f"🤖 <b>AI-распознавание номера заказа:</b> {ocr_status}\n"
+        "   Бот автоматически считает номер с фото\n\n"
+        "⚠️ <b>Внимание:</b> Бета-функции могут работать нестабильно. "
+        "Обязательно проверяйте распознанные данные!"
+    )
+    
+    builder = InlineKeyboardBuilder()
+    if ocr_helper.is_ocr_available():
+        builder.add(InlineKeyboardButton(text="🤖 Создать заказ с AI", callback_data="beta_create_order"))
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="help"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    
+    await safe_edit_message(callback, text, builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "beta_create_order")
+async def beta_start_create_order(callback: CallbackQuery, state: FSMContext):
+    """Начать бета-создание заказа с OCR"""
+    if not ocr_helper.is_ocr_available():
+        await callback.answer("❌ OCR недоступен на сервере", show_alert=True)
+        return
+    
+    user_profession = await db.get_user_profession(callback.from_user.id)
+    
+    if user_profession is None:
+        text = "👨‍🎨 <b>Сначала выберите вашу профессию:</b>"
+        keyboard = get_profession_keyboard()
+        await safe_edit_message(callback, text, keyboard)
+        await state.set_state(UserStates.waiting_for_profession)
+        await callback.answer()
+        return
+    
+    profession_text = "🎨 Маляр" if user_profession == "painter" else "💨 Пескоструйщик"
+    text = (
+        f"🤖 <b>БЕТА: Создание заказа с AI ({profession_text})</b>\n\n"
+        f"📸 Отправьте фото с номером заказа.\n"
+        f"Бот попробует распознать номер автоматически.\n\n"
+        f"💡 <b>Совет:</b> Сфотографируйте номер чётко и крупно для лучшего результата."
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    
+    await safe_edit_message(callback, text, builder.as_markup())
+    await state.update_data(profession=user_profession)
+    await state.set_state(BetaOrderStates.waiting_for_photo)
+    await callback.answer()
+
+
+@router.message(StateFilter(BetaOrderStates.waiting_for_photo), F.photo)
+async def beta_process_photo(message: Message, state: FSMContext):
+    """Обработка фото в бета-режиме с OCR"""
+    photo = max(message.photo, key=lambda x: x.file_size)
+    
+    await state.update_data(photo_file_id=photo.file_id)
+    
+    # Показываем, что обрабатываем
+    processing_msg = await message.answer("🤖 Распознаю номер заказа...")
+    
+    try:
+        # Скачиваем фото
+        file = await message.bot.get_file(photo.file_id)
+        photo_bytes = await message.bot.download_file(file.file_path)
+        
+        # Читаем байты
+        photo_data = photo_bytes.read()
+        
+        # Распознаём номер
+        order_number = await ocr_helper.extract_order_number(photo_data)
+        
+        # Удаляем сообщение о обработке
+        try:
+            await processing_msg.delete()
+        except:
+            pass
+        
+        if order_number:
+            # Номер распознан
+            await state.update_data(recognized_order_number=order_number)
+            
+            builder = InlineKeyboardBuilder()
+            builder.add(InlineKeyboardButton(text="✅ Да, всё верно", callback_data=f"beta_confirm_number"))
+            builder.add(InlineKeyboardButton(text="✏️ Ввести другой", callback_data="beta_manual_number"))
+            builder.add(InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"))
+            builder.adjust(1)
+            
+            await message.answer(
+                f"📸 <b>Фото получено!</b>\n\n"
+                f"🤖 Распознан номер заказа: <code>{order_number}</code>\n\n"
+                f"Правильно?",
+                parse_mode="HTML",
+                reply_markup=builder.as_markup()
+            )
+            await state.set_state(BetaOrderStates.waiting_for_order_number_confirm)
+        else:
+            # Не удалось распознать
+            await message.answer(
+                "📸 <b>Фото получено!</b>\n\n"
+                "❌ К сожалению, не удалось распознать номер заказа.\n"
+                "Введите номер вручную:",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard()
+            )
+            await state.set_state(BetaOrderStates.waiting_for_order_number_manual)
+            
+    except Exception as e:
+        logging.error(f"Ошибка обработки фото с OCR: {e}")
+        try:
+            await processing_msg.delete()
+        except:
+            pass
+        
+        await message.answer(
+            "❌ <b>Ошибка распознавания</b>\n\n"
+            "Введите номер заказа вручную:",
+            parse_mode="HTML",
+            reply_markup=get_cancel_keyboard()
+        )
+        await state.set_state(BetaOrderStates.waiting_for_order_number_manual)
+
+
+@router.callback_query(F.data == "beta_confirm_number", StateFilter(BetaOrderStates.waiting_for_order_number_confirm))
+async def beta_confirm_number(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение распознанного номера"""
+    data = await state.get_data()
+    order_number = data.get("recognized_order_number")
+    profession = data.get("profession")
+    
+    if not order_number:
+        await callback.answer("Ошибка: номер не найден", show_alert=True)
+        return
+    
+    # Проверяем существование
+    if await db.check_order_number_exists(order_number, profession):
+        await callback.message.answer(
+            f"⚠️ <b>Заказ с номером '{order_number}' уже существует!</b>\n\n"
+            f"Что вы хотите сделать?",
+            parse_mode="HTML",
+            reply_markup=get_order_exists_keyboard(order_number)
+        )
+        return
+    
+    await state.update_data(order_number=order_number)
+    
+    text = f"📋 <b>Номер заказа:</b> {order_number}\n\nВыберите тип заказа:"
+    
+    await callback.message.answer(
+        text,
+        parse_mode="HTML",
+        reply_markup=get_set_type_keyboard(profession)
+    )
+    await state.set_state(OrderStates.waiting_for_set_type)
+    await callback.answer("✅ Продолжаем обычный флоу")
+
+
+@router.callback_query(F.data == "beta_manual_number", StateFilter(BetaOrderStates.waiting_for_order_number_confirm))
+async def beta_manual_number(callback: CallbackQuery, state: FSMContext):
+    """Ручной ввод номера после распознавания"""
+    await callback.message.answer(
+        "✏️ Введите номер заказа вручную:",
+        reply_markup=get_cancel_keyboard()
+    )
+    await state.set_state(BetaOrderStates.waiting_for_order_number_manual)
+    await callback.answer()
+
+
+@router.message(StateFilter(BetaOrderStates.waiting_for_order_number_manual))
+async def beta_process_manual_number(message: Message, state: FSMContext):
+    """Обработка ручного ввода номера в бета-режиме"""
+    if not message.text:
+        await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
+        return
+    
+    order_number = message.text.strip()
+    
+    if not order_number:
+        await message.answer("❌ Номер заказа не может быть пустым. Попробуйте еще раз:")
+        return
+    
+    data = await state.get_data()
+    profession = data.get("profession")
+    
+    # Проверяем существование
+    if await db.check_order_number_exists(order_number, profession):
+        await message.answer(
+            f"⚠️ <b>Заказ с номером '{order_number}' уже существует!</b>\n\n"
+            f"Что вы хотите сделать?",
+            parse_mode="HTML",
+            reply_markup=get_order_exists_keyboard(order_number)
+        )
+        return
+    
+    await state.update_data(order_number=order_number)
+    
+    await message.answer(
+        f"📋 <b>Номер заказа:</b> {order_number}\n\nВыберите тип заказа:",
+        parse_mode="HTML",
+        reply_markup=get_set_type_keyboard(profession)
+    )
+    await state.set_state(OrderStates.waiting_for_set_type)
+
+
+@router.message(StateFilter(BetaOrderStates.waiting_for_photo))
+async def beta_process_non_photo(message: Message):
+    """Обработка не-фото в бета-режиме"""
+    await message.answer(
+        "❌ Пожалуйста, отправьте фото с номером заказа.",
+        reply_markup=get_cancel_keyboard()
+    )
+
 
 @router.message(StateFilter(OrderStates.waiting_for_photo), F.photo)
 async def process_photo(message: Message, state: FSMContext):
@@ -1713,7 +1942,12 @@ async def handle_any_message(message: Message, state: FSMContext):
         current_state == EditOrderStates.waiting_for_new_price or
         current_state == EarningsStates.waiting_for_prep_delta or
         current_state == EarningsStates.waiting_for_painting_delta or
-        current_state == EarningsStates.waiting_for_description):
+        current_state == EarningsStates.waiting_for_description or
+        current_state in [
+            BetaOrderStates.waiting_for_photo,
+            BetaOrderStates.waiting_for_order_number_confirm,
+            BetaOrderStates.waiting_for_order_number_manual
+        ]):
         # Эти состояния обрабатываются выше, пропускаем
         return
     

@@ -33,3 +33,13 @@ class EarningsStates(StatesGroup):
     waiting_for_prep_delta = State()
     waiting_for_painting_delta = State()
     waiting_for_description = State()
+
+
+class BetaOrderStates(StatesGroup):
+    """Состояния для бета-версии создания заказа с OCR"""
+    waiting_for_photo = State()
+    waiting_for_order_number_confirm = State()
+    waiting_for_order_number_manual = State()
+    waiting_for_set_type = State()
+    waiting_for_size = State()
+    waiting_for_alumochrome = State()
