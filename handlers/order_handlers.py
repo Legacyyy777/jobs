@@ -538,24 +538,16 @@ async def show_earnings_day(callback: CallbackQuery):
         callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
-    user_profession = await db.get_user_profession(callback.from_user.id)
     
     earnings = await db.get_user_earnings_today(user_id)
     avg_earnings = await db.get_user_avg_earnings_per_day(user_id)
     
-    text = (
-        f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб.\n\n"
-        f"📊 <b>Средний заработок за день:</b> {avg_earnings:,.0f} руб."
+    alert_text = (
+        f"💰 Заработок за сегодня: {earnings:,} руб.\n"
+        f"📊 Средний за день: {avg_earnings:,.0f} руб."
     )
     
-    builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="analytics_menu"))
-    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
-    builder.adjust(1)
-    keyboard = builder.as_markup()
-    
-    await safe_edit_message(callback, text, keyboard)
-    await callback.answer()
+    await callback.answer(alert_text, show_alert=True)
 
 @router.callback_query(F.data == "earnings_month")
 async def show_earnings_month(callback: CallbackQuery):
