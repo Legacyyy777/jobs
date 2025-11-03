@@ -751,7 +751,7 @@ class Database:
         async with self.pool.acquire() as conn:
             if profession:
                 rows = await conn.fetch("""
-                    SELECT EXTRACT(DOW FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
+                    SELECT EXTRACT(DOW FROM (o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
                            COUNT(*) as count
                     FROM orders o
                     JOIN users u ON o.user_id = u.id
@@ -764,12 +764,12 @@ class Database:
                 """, start_month_utc, end_month_utc, profession)
             else:
                 rows = await conn.fetch("""
-                    SELECT EXTRACT(DOW FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
+                    SELECT EXTRACT(DOW FROM (o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Yekaterinburg'))::INTEGER as weekday,
                            COUNT(*) as count
-                    FROM orders
-                    WHERE status = 'confirmed'
-                      AND (created_at AT TIME ZONE 'UTC') >= $1
-                      AND (created_at AT TIME ZONE 'UTC') < $2
+                    FROM orders o
+                    WHERE o.status = 'confirmed'
+                      AND (o.created_at AT TIME ZONE 'UTC') >= $1
+                      AND (o.created_at AT TIME ZONE 'UTC') < $2
                     GROUP BY weekday
                     ORDER BY weekday
                 """, start_month_utc, end_month_utc)
