@@ -1383,13 +1383,16 @@ async def handle_any_message(message: Message, state: FSMContext):
         return
     
     # Игнорируем состояния редактирования заказов (они обрабатываются в edit_handlers.py)
-    from handlers.fsm import EditOrderStates
+    from handlers.fsm import EditOrderStates, EarningsStates
     current_state = await state.get_state()
     
-    # Проверяем, не находимся ли мы в состоянии редактирования заказов
+    # Проверяем, не находимся ли мы в состоянии редактирования заказов или заработка
     if (current_state == EditOrderStates.waiting_for_order_number or 
-        current_state == EditOrderStates.waiting_for_new_price):
-        # Эти состояния обрабатываются в edit_handlers.py, пропускаем
+        current_state == EditOrderStates.waiting_for_new_price or
+        current_state == EarningsStates.waiting_for_prep_delta or
+        current_state == EarningsStates.waiting_for_painting_delta or
+        current_state == EarningsStates.waiting_for_description):
+        # Эти состояния обрабатываются выше, пропускаем
         return
     
     # Если пользователь не в процессе создания заказа, показываем главное меню
