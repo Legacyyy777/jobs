@@ -411,11 +411,11 @@ async def show_salary_menu(callback: CallbackQuery):
 
 @router.callback_query(F.data == "analytics_menu")
 async def show_analytics_menu(callback: CallbackQuery):
-    """Показать раздел аналитики"""
+    """Показать раздел аналитики и зарплаты"""
     user_profession = await db.get_user_profession(callback.from_user.id)
     text = (
-        "📊 <b>Аналитика</b>\n\n"
-        "Статистика за текущий месяц:"
+        "📊 <b>Аналитика и статистика</b>\n\n"
+        "Данные за текущий месяц:"
     )
     keyboard = get_analytics_keyboard(user_profession)
 
