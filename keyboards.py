@@ -221,6 +221,7 @@ def get_month_earnings_keyboard(profession: str = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if profession == "painter":
         builder.add(InlineKeyboardButton(text="✏️ Редактировать заработок", callback_data="salary_edit_menu"))
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="analytics_menu"))
     builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
     builder.adjust(1)
     return builder.as_markup()

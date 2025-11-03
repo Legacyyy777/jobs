@@ -8,6 +8,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import default_state
 
 from handlers.fsm import OrderStates, UserStates, EarningsStates
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton
 from keyboards import (
     get_main_menu_keyboard,
     get_set_type_keyboard, 
@@ -536,6 +538,7 @@ async def show_earnings_day(callback: CallbackQuery):
         callback.from_user.id,
         callback.from_user.full_name or callback.from_user.username or "Unknown"
     )
+    user_profession = await db.get_user_profession(callback.from_user.id)
     
     earnings = await db.get_user_earnings_today(user_id)
     avg_earnings = await db.get_user_avg_earnings_per_day(user_id)
@@ -544,7 +547,12 @@ async def show_earnings_day(callback: CallbackQuery):
         f"💰 <b>Заработок за сегодня:</b> {earnings:,} руб.\n\n"
         f"📊 <b>Средний заработок за день:</b> {avg_earnings:,.0f} руб."
     )
-    keyboard = get_back_to_menu_keyboard()
+    
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="analytics_menu"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    keyboard = builder.as_markup()
     
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
@@ -1776,7 +1784,12 @@ async def show_price_list(callback: CallbackQuery):
         text += f"Глубокое: +{config.PRICE_SPRAYING_DEEP}₽\n"
         text += f"Неглубокое: +{config.PRICE_SPRAYING_SHALLOW}₽"
     
-    keyboard = get_back_to_menu_keyboard()
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="analytics_menu"))
+    builder.add(InlineKeyboardButton(text="🏠 Главное меню", callback_data="main_menu"))
+    builder.adjust(1)
+    keyboard = builder.as_markup()
+    
     await safe_edit_message(callback, text, keyboard)
     await callback.answer()
 
